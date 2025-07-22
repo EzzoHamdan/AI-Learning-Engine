@@ -11,7 +11,7 @@ requests>=2.31.0
 
 # Document Processing
 PyMuPDF>=1.23.0
-python-docx>=0.8.11
+python-docx>=0.8.11 
 python-pptx>=0.6.21
 black>=23.0.0
 flake8>=6.0.0
