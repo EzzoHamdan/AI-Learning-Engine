@@ -41,8 +41,9 @@ Supports **Local AI (Ollama)**, **Google AI**, and **OpenAI** with complete priv
 
 ### Option 1: Easy Setup Wizard (Recommended)
 ```bash
-# Clone or download the repository
-git clone <repository-url>
+# Download the code as a zip file or
+# Clone the repository
+git clone https://github.com/EzzoHamdan/AI-Learning-Engine
 cd AI-Learning-Engine
 
 # Run the setup wizard
