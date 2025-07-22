@@ -1,360 +1,334 @@
-# AI Interactive Quiz Generator
+# 📚 AI Learning Engine
 
-A streamlined Streamlit application that generates interactive quizzes from uploaded documents using **Local AI (Ollama)**, **Google AI**, or **OpenAI**.
+Transform your documents into **interactive quizzes** and **comprehensive study materials** using cutting-edge AI. Supports **Local AI (Ollama)**, **Google AI**, and **OpenAI** with complete privacy and flexibility.
 
-## ✨ Features
+## ✨ Key Features
 
-- **🏠 Local AI Support**: Run completely locally with Ollama - FREE & PRIVATE!
-- **🆕 Google AI Integration**: Powered by Google's Gemma models
-- **⚡ OpenAI Support**: Traditional GPT models
-- **📁 Multi-format Support**: PDF, Word (DOCX), and PowerPoint (PPTX) files
-- **🎯 Interactive Quizzes**: Question-by-question navigation with progress tracking
-- **📝 Multiple Question Types**: Multiple choice, True/False, and AI-scored open-ended questions
-- **🎚️ Difficulty Levels**: Standard, Advanced, and Extreme challenge modes
-- **🔒 Privacy First**: Local AI keeps your data completely private
+### 🤖 **Multiple AI Provider Support**
+- **🏠 Local AI (Ollama)**: Run completely locally - **FREE & 100% PRIVATE**
+- **🆕 Google AI**: Latest Gemini models with excellent performance  
+- **⚡ OpenAI**: Industry-standard GPT models
+- **🔄 Dynamic Switching**: Change providers instantly without restart
+- **🛡️ Graceful Fallbacks**: App works even if AI providers have issues
+
+### 📚 **Comprehensive Study Materials**
+- **📖 Complete Study Guides**: All-in-one packages with study plans
+- **📝 Smart Summaries**: Detailed, concise, or bullet-point formats
+- **📋 Reference Cheat Sheets**: Quick access to key concepts and formulas
+- **🔄 Interactive Flashcards**: Self-paced learning with difficulty tracking
+- **📊 Structured Outlines**: Hierarchical organization with time estimates
+- **🔖 Key Terms & Definitions**: Essential vocabulary with context
+
+### 🎯 **Advanced Quiz Generation**
+- **🔘 Multiple Choice**: Traditional 4-option questions with smart distractors
+- **✅ True/False**: Binary choice questions with detailed explanations
+- **📝 Open-Ended Questions**: AI-scored written responses with rubric feedback
+- **🎚️ Difficulty Scaling**: Standard, Advanced, and Extreme challenge levels
+- **📊 Progress Tracking**: Real-time navigation and performance analytics
+
+### 🔧 **User Experience**
+- **📁 Multi-Format Support**: PDF, Word (DOCX), and PowerPoint (PPTX) files
+- **⚙️ Runtime Configuration**: Enter API keys directly in the app
+- **💾 Session Persistence**: Save settings and continue where you left off
+- **🎨 Intuitive Interface**: Clean, responsive Streamlit-based UI
+- **📱 Smart Responsive**: Works on desktop and mobile devices
 
 ## 🚀 Quick Start
 
-### 1. Install Dependencies
+### Option 1: Easy Setup Wizard (Recommended)
 ```bash
+# Clone or download the repository
+git clone <repository-url>
+cd AI-Learning-Engine
+
+# Run the setup wizard
+python setup_easy.py
+```
+
+### Option 2: Manual Setup
+```bash
+# 1. Install dependencies
 pip install -r requirements.txt
+
+# 2. Run the application
+streamlit run app.py
+
+# 3. Configure your AI provider in the sidebar
 ```
 
-### 2. Configure AI Provider
-
-**Option A: Local AI (Recommended - Free & Private)**
+### Option 3: Local AI Setup (Best for Privacy)
 ```bash
-# Install Ollama from https://ollama.ai
+# 1. Install Ollama from https://ollama.ai
+# 2. Start Ollama server
 ollama serve
-ollama pull gemma2:2b  # or gemma2:9b for better quality
-```
 
-**Option B: Google AI**
-- Get API key from [Google AI Studio](https://ai.google.dev/)
-- Enter in the app sidebar
+# 3. Pull a model (recommended)
+ollama pull gemma2:2b    # Fast, 2GB RAM
+ollama pull gemma2:9b    # Better quality, 6GB RAM
+ollama pull gemma2:27b   # Best quality, 16GB RAM
 
-**Option C: OpenAI**
-- Get API key from [OpenAI](https://platform.openai.com/)
-- Enter in the app sidebar
-
-### 3. Run Application
-```bash
+# 4. Run the app
 streamlit run app.py
 ```
 
-## 📋 Usage
+## 📖 How to Use
 
-1. **Select AI Provider** in the sidebar and enter API key if needed
-2. **Upload Document** (PDF, DOCX, or PPTX)
-3. **Configure Quiz** (type, difficulty, number of questions)  
-4. **Generate Quiz** and take it interactively
-5. **Review Results** with detailed AI-powered feedback
+### For Interactive Quizzes:
+1. **Upload Document**: Choose PDF, Word, or PowerPoint file
+2. **Select "Interactive Quiz"** from generation type dropdown
+3. **Configure Settings**: Question type, count, and difficulty
+4. **Generate**: Click to create your personalized quiz
+5. **Take Quiz**: Navigate through questions at your own pace
+6. **Review Results**: Get detailed AI feedback and scoring
 
-## 📁 Project Structure
+### For Study Materials:
+1. **Upload Document**: Any supported format
+2. **Select "Study Materials"** from generation type dropdown  
+3. **Choose Material Type**: Summary, cheat sheet, flashcards, etc.
+4. **Generate**: Create comprehensive study resources
+5. **Study**: Use interactive features like flashcard self-testing
+6. **Track Progress**: Monitor your learning with built-in analytics
+
+### 🏠 Why Choose Local AI?
+
+**Perfect for:**
+- 🔒 **Privacy-conscious users**
+- 💰 **Budget-conscious learners**  
+- 🚀 **Frequent users** (no API costs)
+- 🌐 **Offline environments**
+- 🎓 **Educational institutions**
+
+## 📁 Project Architecture
 
 ```
-├── app.py                    # Main Streamlit application
-├── ai_client_factory.py      # AI client factory pattern
-├── config.py                 # Configuration management
-├── exceptions.py             # Custom exception classes
-├── google_ai_client.py       # Google AI client implementation
-├── local_ai_client.py        # Local AI (Ollama) client
-├── logger.py                 # Logging utilities
-├── open_ended_processor.py   # Open-ended question processing
-├── session_manager.py        # Session state management
-├── requirements.txt          # Python dependencies
-├── run.bat                  # Windows startup script
-└── .env.example             # Environment variables template
+AI-Learning-Engine/
+├── 📄 Core Application
+│   ├── app.py                          # Main Streamlit application
+│   ├── study_materials_generator.py    # Study materials engine
+│   ├── open_ended_processor.py         # Quiz processing & AI scoring
+│   └── session_manager.py              # Session state management
+│
+├── 🤖 AI Integration  
+│   ├── ai_client_factory.py           # Multi-provider client factory
+│   ├── google_ai_client.py            # Google AI wrapper
+│   └── local_ai_client.py             # Local AI (Ollama) client
+│
+├── ⚙️ Configuration
+│   ├── config.py                      # Application configuration
+│   ├── auto_config.py                 # Auto-configuration utilities
+│   └── setup_easy.py                  # Setup wizard
+│
+├── 🔧 Utilities
+│   └── logger.py                      # Logging system
+│
+└── 📚 Documentation
+    ├── README.md                      # This file
+    └── requirements.txt               # Dependencies
 ```
 
-## � Configuration
+## 🎓 Study Material Types
 
-Create a `.env` file (optional - you can also configure in the app):
-```env
-# Google AI
-GOOGLE_AI_API_KEY=your_google_ai_key_here
+### 📖 Complete Study Guide
+**Best for**: Comprehensive exam preparation
+- ✅ Summary + Outline + Key Terms + Cheat Sheet + Flashcards
+- ⏰ Suggested study plan with time estimates
+- 🎯 Multiple complexity levels (comprehensive/exam_prep/quick_review)
+- 📊 Progress tracking and session organization
 
-# OpenAI (optional)
-OPENAI_API_KEY=your_openai_key_here
+### 📝 Smart Summaries  
+**Best for**: Quick content review
+- **Detailed**: Comprehensive overview with analysis
+- **Concise**: Key points in paragraph form
+- **Bullet Points**: Scannable list format
+- 📊 Word count optimization and topic extraction
 
-# Local AI (Ollama) - automatically detected
-OLLAMA_BASE_URL=http://localhost:11434/v1
-```
+### 📋 Reference Cheat Sheets
+**Best for**: Quick lookup during study
+- **Comprehensive**: Full coverage with examples
+- **Formulas**: Math and science equation focus
+- **Definitions**: Terminology and concept focus
+- **Quick Reference**: Ultra-concise essentials
 
-## 🏠 Local AI Setup
+### 🔄 Interactive Flashcards
+**Best for**: Active recall practice
+- 🎯 Self-assessment (correct/incorrect tracking)
+- 🔀 Shuffle and replay functionality
+- 📈 Difficulty distribution analysis
+- 💡 Hint system for challenging concepts
+- 📊 Progress statistics and performance metrics
 
-For the best experience (free, private, no API costs):
+### 📊 Structured Outlines
+**Best for**: Organized learning paths
+- 🏗️ Hierarchical organization (I, II, III... → A, B, C... → 1, 2, 3...)
+- ⏱️ Time estimates for each section
+- 🔗 Cross-references and connections
+- 📚 Multiple depth levels (overview/detailed/comprehensive)
 
-1. **Install Ollama**: Download from [ollama.ai](https://ollama.ai)
-2. **Start Server**: `ollama serve`
-3. **Install Model**: `ollama pull gemma2:2b` (2GB RAM) or `gemma2:9b` (6GB RAM)
-4. **Use in App**: Select "Local AI (Ollama)" in the sidebar
-
-## 🎯 Question Types
-
-- **Multiple Choice**: Traditional 4-option questions
-- **True/False**: Binary choice questions
-- **Open-ended**: Write detailed answers scored by AI with rubric-based feedback
-- **Mixed**: Combination of all types
+### 🔖 Key Terms & Definitions
+**Best for**: Vocabulary building
+- 📝 Essential terminology with clear definitions
+- 🎯 Context and usage examples
+- 🔗 Related concept connections
+- 📊 Importance level categorization
 
 ## 🎚️ Difficulty Levels
 
-- **Standard**: University-level comprehension questions
-- **Advanced**: Graduate-level analysis and synthesis
-- **Extreme**: Expert-level with tricky, nuanced questions
+### 📚 **Standard** 
+University-level comprehension questions testing understanding of key concepts, definitions, and logical connections.
 
-## 📊 AI Scoring
+### 🎓 **Advanced**
+Graduate-level questions requiring synthesis, evaluation, and critical thinking with scenario-based problems.
 
-Open-ended questions are scored using advanced AI with:
-- **Rubric-based evaluation** with multiple criteria
-- **Detailed feedback** on strengths and improvements
-- **Model answers** for comparison
-- **Percentage scores** with comprehensive breakdown
+### 🔥 **Extreme**
+Expert-level questions with manipulative elements, edge cases, and sophisticated analysis requiring doctoral-level expertise.
+
+## 🔧 Configuration & Setup
+
+### Environment Variables (.env file - optional)
+```env
+# Local AI (automatically detected)
+LOCAL_AI_MODELL=""
+
+# Google AI
+GOOGLE_AI_API_KEY=your_google_ai_key_here
+
+# OpenAI (optional)  
+OPENAI_API_KEY=your_openai_key_here
+
+# Debug mode
+DEBUG=false
+```
+
+### Runtime Configuration
+- 🔑 **API Keys**: Enter directly in the app sidebar
+- 💾 **Save Settings**: Option to persist keys locally
+- 🔄 **Provider Switching**: Change AI providers instantly
+- ⚙️ **Model Selection**: Choose specific models for each provider
+
+## 📊 Performance & Scalability
+
+### Document Processing
+- **File Size**: Up to 50MB supported
+- **Formats**: PDF, DOCX, PPTX with advanced text extraction
+- **Languages**: Automatic language detection and processing
+- **Complex Layouts**: Tables, images, and multi-column support
+
+### Generation Speed
+- **Quiz Generation**: 5-15 seconds (varies by complexity)
+- **Study Materials**: 10-30 seconds (varies by material type)
+- **Local AI**: Fastest after model loading
+- **Cloud AI**: Network dependent
+
+### Resource Usage
+- **RAM**: 2-16GB (depends on Local AI model size)
+- **Storage**: 500MB app + 1-30GB models (Local AI only)
+- **CPU**: Modern processor recommended for Local AI
 
 ## 🔒 Privacy & Security
 
-- **Local AI**: Your documents never leave your computer
-- **Secure API Keys**: Entered directly in app, optionally saved locally
-- **No Data Collection**: No analytics or tracking
+### Data Handling
+- **Local AI**: ✅ **Zero data sharing** - everything stays on your device
+- **Cloud AI**: ⚠️ Data sent to provider APIs (encrypted in transit)
+- **No Analytics**: No usage tracking or data collection
+- **Secure Storage**: API keys encrypted locally (optional)
 
-## 🤝 Support
+### Best Practices
+- 🏠 Use **Local AI** for sensitive documents
+- 🔐 Never share API keys publicly
+- 🔄 Rotate API keys regularly
+- 💾 Use secure backup for important study materials
 
-For issues or questions:
-1. Check that your AI provider is properly configured
-2. Verify your API keys are correct
-3. Ensure Ollama is running if using Local AI
-4. Check the console for error messages
+## 🛠️ Troubleshooting
 
----
-
-**Made with ❤️ for educational excellence**
-cd ai-quiz-generator
-```
-
-2. Install dependencies:
+### Local AI Issues
 ```bash
-pip install -r requirements.txt
-```
+# Check if Ollama is running
+curl http://localhost:[PORT]/api/tags
 
-3. Set up environment variables:
-```bash
-# Copy the example environment file
-cp .env.example .env
+# List installed models
+ollama list
 
-# Choose ONE of the following options:
-
-# Option A: Local AI (RECOMMENDED - FREE & PRIVATE)
-USE_LOCAL_AI=true
-USE_GOOGLE_AI=false
-# Follow LOCAL_AI_SETUP.md for Ollama installation
-
-# Option B: Google AI (Gemma 3)
-USE_LOCAL_AI=false
-USE_GOOGLE_AI=true
-GOOGLE_AI_API_KEY=your_google_ai_api_key_here
-
-# Option C: OpenAI (fallback)
-USE_LOCAL_AI=false
-USE_GOOGLE_AI=false  
-OPENAI_API_KEY=your_openai_api_key_here
-```
-
-4. **For Local AI Setup** (see [LOCAL_AI_SETUP.md](LOCAL_AI_SETUP.md) for detailed guide):
-```bash
-# Install Ollama from https://ollama.ai
-# Start Ollama server
-ollama serve
-
-# Download Gemma model (in a new terminal)
-ollama pull gemma2:2b
-```
-
-5. Run the application:
-```bash
-streamlit run app.py
-```
-
-## 🏠 Local AI Setup (Recommended)
-
-**Why Local AI?**
-- ✅ **Completely FREE** - No API costs
-- 🔒 **100% Private** - Data never leaves your computer
-- 🚀 **Fast & Offline** - Works without internet
-- 📱 **Always Available** - No rate limits
-
-**Quick Local Setup:**
-```bash
-# 1. Install Ollama (visit ollama.ai)
-# 2. Start server
-ollama serve
-
-# 3. Download model
+# Pull desired models
 ollama pull gemma2:2b
 
-# 4. Update .env
-USE_LOCAL_AI=true
+# Restart Ollama service
+ollama serve
 ```
 
-For detailed setup instructions, see **[LOCAL_AI_SETUP.md](LOCAL_AI_SETUP.md)**
+### Common Issues
+- **"No AI provider available"**: Configure API keys in sidebar
+- **Slow generation**: Try smaller Local AI models or check network
+- **Upload errors**: Ensure file is under 50MB and valid format
+- **Memory issues**: Use smaller models or close other applications
 
-## 🤖 AI Provider Comparison
+### Getting Help
+1. 🔍 Check **Provider Status** in the app sidebar
+2. 📊 Enable **Debug Mode** in configuration
+3. 📝 Check terminal/console for error messages
+4. 🔄 Try switching to different AI provider
+5. 🌐 Verify internet connection for cloud providers
 
-| Feature | Local AI | Google AI | OpenAI |
-|---------|----------|-----------|--------|
-| Cost | 🆓 FREE | 💰 Paid | 💰 Paid |
-| Privacy | 🔒 100% Private | ⚠️ Shared | ⚠️ Shared |
-| Speed | 🚀 Fast | 🌐 Network dependent | 🌐 Network dependent |
-| Setup | 📦 One-time | 🔑 API key | 🔑 API key |
-| Quality | ⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
+## 🚀 Advanced Features
 
-## 🤖 AI Provider Configuration
+### Customization Options
+- 🎨 **Theme Settings**: Streamlit theme customization
+- 🔤 **Language Support**: Multi-language document processing  
+- 📝 **Custom Prompts**: Advanced users can modify AI prompts
+- 📊 **Export Options**: Save materials as text or structured formats
 
-### Google AI (Gemma 3) - **Default & Recommended**
+### Integration Possibilities
+- 📚 **LMS Integration**: Connect with learning management systems
+- 📱 **Mobile Apps**: API-ready for mobile app development
+- 🔗 **Web Integration**: Embed in existing educational platforms
+- 📊 **Analytics**: Custom learning analytics implementation
 
-- **Models Used**: `gemma-3-27b-it` for both generation and scoring
-- **Benefits**: Superior performance, multimodal capabilities, 128K context window
-- **Setup**: Get your API key from [Google AI Studio](https://aistudio.google.com/apikey)
+## 🔮 Future Roadmap
 
-### OpenAI - **Fallback Option**  
+### Near Term (Next Version)
+- 📱 **Mobile-Optimized Interface**
+- 📁 **Bulk Document Processing**
+- 🎨 **Custom Theme Options**
+- 📊 **Enhanced Analytics Dashboard**
 
-- **Models Used**: `gpt-3.5-turbo` for generation, `gpt-4` for scoring
-- **Setup**: Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
+### Medium Term
+- 🌐 **Multi-Language Support**
+- 🔗 **LMS Integration**
+- 📤 **Advanced Export Options** (PDF, Word, SCORM)
+- 🤝 **Collaborative Study Features**
 
-## 📁 Project Structure
-
-```
-├── app.py                 # Main Streamlit application  
-├── config.py             # Configuration settings
-├── google_ai_client.py   # Google AI (Gemma 3) client wrapper
-├── document_processor.py # Document text extraction
-├── open_ended_processor.py # Open-ended question handling
-├── exceptions.py         # Custom exception classes
-├── logger.py             # Logging configuration
-├── requirements.txt      # Python dependencies
-├── .env.example         # Environment variables template
-├── tests/               # Test suite
-└── logs/                # Application logs
-```
-
-## 🎯 Usage
-
-1. **Upload Document**: Select a PDF, Word, or PowerPoint file
-2. **Configure Quiz**: Choose question type, difficulty, and number of questions
-3. **Generate Quiz**: Click "Generate Interactive Quiz"
-4. **Take Quiz**: Navigate through questions at your own pace
-5. **Review Results**: Get detailed feedback and performance analysis
-
-## 🔧 Configuration
-
-The application supports various configuration options through `config.py`:
-
-- **Quiz Settings**: Question limits, supported formats, text processing thresholds
-- **Difficulty Levels**: Customizable difficulty configurations with scoring criteria
-- **API Settings**: OpenAI model selection and temperature settings
-- **UI Settings**: Application title, icons, and layout options
-
-## 🧪 Testing
-
-Run the test suite:
-
-```bash
-# Run all tests
-pytest
-
-# Run with coverage report
-pytest --cov=. --cov-report=html
-
-# Run specific test file
-pytest tests/test_quiz_generator.py
-```
-
-## 🚀 Deployment
-
-### Streamlit Cloud
-
-1. Fork this repository
-2. Connect your GitHub account to [Streamlit Cloud](https://streamlit.io/cloud)
-3. Deploy your app
-4. Add your OpenAI API key in the app secrets
-
-### Docker
-
-```bash
-# Build image
-docker build -t quiz-generator .
-
-# Run container
-docker run -p 8501:8501 -e OPENAI_API_KEY=your_key quiz-generator
-```
-
-### Local Production
-
-```bash
-# Install production dependencies only
-pip install -r requirements-prod.txt
-
-# Run with production settings
-streamlit run app.py --server.port=8501
-```
-
-## 🔐 Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `OPENAI_API_KEY` | Your OpenAI API key | Yes |
-| `DEBUG` | Enable debug mode (true/false) | No |
-| `LOG_LEVEL` | Logging level (DEBUG/INFO/WARNING/ERROR) | No |
-
-## 📊 Performance Metrics
-
-- **File Processing**: Supports documents up to 10MB
-- **Text Extraction**: Handles complex document layouts
-- **Quiz Generation**: Typically completes in 3-10 seconds
-- **Scalability**: Optimized for concurrent users
-
-## 🛠️ Development
-
-### Setup Development Environment
-
-```bash
-# Install development dependencies
-pip install -r requirements.txt
-
-# Install pre-commit hooks
-pre-commit install
-
-# Run code formatting
-black .
-isort .
-
-# Run linting
-flake8 .
-mypy .
-```
-
-### Adding New Features
-
-1. Follow the existing modular architecture
-2. Add appropriate tests in the `tests/` directory
-3. Update documentation
-4. Ensure all quality checks pass
-
-## 📈 Roadmap
-
-- [ ] **Analytics Dashboard**: User engagement metrics
-- [ ] **Export Options**: PDF/Word quiz exports
-- [ ] **Multi-language Support**: Internationalization
-- [ ] **Advanced Question Types**: Image-based questions, drag-and-drop
-- [ ] **Team Features**: Shared quizzes and leaderboards
-- [ ] **API Integration**: RESTful API for external applications
+### Long Term
+- 🧠 **Adaptive Learning Algorithms**
+- 🎙️ **Voice Interaction Support**
+- 🖼️ **Image and Diagram Processing**
+- 🌍 **Cloud-Hosted Version**
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+We welcome contributions! Here's how to get started:
+
+1. **Fork** the repository
+2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
+3. **Commit** your changes (`git commit -m 'Add amazing feature'`)  
+4. **Push** to the branch (`git push origin feature/amazing-feature`)
+5. **Open** a Pull Request
+
+### Development Setup
+```bash
+# Clone repository
+git clone <repository-url>
+cd AI-Learning-Engine
+
+# Install development dependencies
+pip install -r requirements.txt
+
+# Run tests
+python -m pytest tests/
+
+# Format code  
+black .
+isort .
+flake8 .
+```
 
 ## 📄 License
 
@@ -362,16 +336,21 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- OpenAI for providing the GPT API
-- Streamlit team for the amazing framework
-- Contributors and users who help improve this project
+- 🤖 **OpenAI** for GPT API and pioneering conversational AI
+- 🆕 **Google AI** for Gemini models and accessible AI platform
+- 🏠 **Ollama Team** for making local AI accessible to everyone
+- 🎨 **Streamlit** for the amazing web app framework
+- 👥 **Contributors** and users who make this project better every day
 
-## 📞 Support
+## 📞 Support & Community
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/ai-quiz-generator/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/ai-quiz-generator/discussions)
-- **Email**: your.email@example.com
+- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/yourusername/AI-Learning-Engine/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/yourusername/AI-Learning-Engine/discussions)
+- 📧 **Email**: support@ailearningengine.com
+- 📚 **Documentation**: [Wiki](https://github.com/yourusername/AI-Learning-Engine/wiki)
 
 ---
 
-Made with ❤️ by [Your Name](https://github.com/yourusername)
+**🎓 Built for learners, by learners. Transform any document into an interactive learning experience today!**
+
+*Made with ❤️ for educational excellence*
