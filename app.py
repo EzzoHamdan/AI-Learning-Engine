@@ -118,7 +118,6 @@ def generate_quiz(text, quiz_type, num_questions=5, difficulty="Standard"):
             "error": "No working AI provider available. Please configure an AI provider in the sidebar."
         }
     
-    # Define difficulty-specific instructions
     difficulty_instructions = {
         "Standard": """
         Create university-level questions that test comprehension, analysis, and application of the material.
