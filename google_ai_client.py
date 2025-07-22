@@ -1,10 +1,7 @@
 """Google AI (Gemma 3) client wrapper for quiz generation."""
 
-from typing import Dict, List, Any, Optional
-import json
-import re
+from typing import Dict, List
 from google import genai
-import streamlit as st
 from config import GoogleAIConfig
 
 class GoogleAIClient:

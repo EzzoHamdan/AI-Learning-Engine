@@ -16,7 +16,7 @@ Supported Materials:
 import json
 import re
 import logging
-from typing import Dict, List, Any, Optional, Tuple
+from typing import Dict, Any, Tuple
 import streamlit as st
 from datetime import datetime
 

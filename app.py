@@ -1,16 +1,9 @@
 import streamlit as st
-from openai import OpenAI
-from google import genai
 import fitz  # PyMuPDF
 import docx
 from pptx import Presentation
 import json
 import re
-import os
-import logging
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-import time
 from dotenv import load_dotenv
 
 # Auto-configuration for easy setup
@@ -1276,7 +1269,7 @@ def main():
                     selected_model = st.selectbox(
                         "🤖 Select Model:",
                         model_options,
-                        format_func=lambda x: f"{x} {get_model_info(x)}",
+                        format_func=lambda x: f"{get_model_info(x)}",
                         index=model_options.index(st.session_state.selected_local_model) if st.session_state.selected_local_model in model_options else 0,
                         key="model_selector",
                         help="Choose which model to use for quiz generation. Larger models are more capable but slower."
@@ -1464,8 +1457,8 @@ def main():
         This application creates personalized, interactive quizzes and comprehensive study materials from your documents with **advanced AI scoring** and **graceful error handling**.
         
         ### 🆕 **New Features:**
-        - **� Study Materials Generation**: Create summaries, cheat sheets, flashcards, and more!
-        - **�🔧 Graceful Error Handling**: App now works even if AI providers have issues
+        - **📝 Study Materials Generation**: Create summaries, cheat sheets, flashcards, and more!
+        - **🔧 Graceful Error Handling**: App now works even if AI providers have issues
         - **⚡ Dynamic Provider Switching**: Change AI providers instantly without restarting
         - **🔐 Runtime API Key Management**: Enter API keys directly in the app and save them
         - **💾 Configuration Persistence**: Optionally save your settings for next time
@@ -1549,7 +1542,7 @@ def main():
             st.markdown("""
             **Why use Local AI?**
             - ✅ **Completely Free** - No API costs ever
-            - 🔒 **Private** - Your data never leaves your computer
+            - 🔐 **Private** - Your data never leaves your computer
             - 🚀 **Fast** - No internet required after setup
             - 🎯 **Always Available** - No rate limits or downtime
             
@@ -1566,16 +1559,17 @@ def main():
             # 4. Or download larger models for better quality
             ollama pull gemma2:9b
             ollama pull gemma2:27b
+            Or any other model you prefer
             ```
             
-            **Hardware Requirements:**
+            **Hardware Requirements:** Examples
             - **2B Model**: 2GB RAM, runs on most computers
             - **9B Model**: 6GB RAM, better quality
             - **27B Model**: 16GB RAM, best quality
             
             **Troubleshooting:**
             - Ensure Ollama is running: `ollama list`
-            - Check server status: `curl http://localhost:11434/api/tags`
+            - Check server status: `curl http://localhost:[PORT]/api/tags`
             - View logs: Check terminal where `ollama serve` is running
             """)
         

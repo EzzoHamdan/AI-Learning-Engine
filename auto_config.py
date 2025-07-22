@@ -6,7 +6,7 @@ Provides smart defaults and graceful fallbacks for easy setup.
 import os
 import subprocess
 import sys
-from typing import Optional, Tuple
+from typing import Tuple
 import requests
 
 

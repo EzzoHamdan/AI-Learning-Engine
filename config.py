@@ -154,30 +154,6 @@ class AppConfig:
             providers.append("OpenAI")
         
         return providers
-    
-    @property
-    def default_provider(self) -> Optional[str]:
-        """Get the best default provider based on availability and user preference."""
-        # Check environment preferences first
-        if os.getenv("USE_LOCAL_AI", "true").lower() == "true":
-            local_config = LocalAIConfig()
-            if local_config.is_available:
-                return "Local AI (Ollama)"
-        
-        if os.getenv("USE_GOOGLE_AI", "false").lower() == "true":
-            google_config = GoogleAIConfig()
-            if google_config.is_configured:
-                return "Google AI"
-        
-        if os.getenv("USE_OPENAI", "false").lower() == "true":
-            openai_config = OpenAIConfig()
-            if openai_config.is_configured:
-                return "OpenAI"
-        
-        # Fall back to first available provider
-        available = self.available_providers
-        return available[0] if available else None
-
 
 # Difficulty level configurations
 DIFFICULTY_CONFIG: Dict[str, Dict[str, str]] = {

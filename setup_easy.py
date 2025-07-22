@@ -6,12 +6,10 @@ This script helps you configure the AI Quiz Generator with minimal effort.
 Perfect for both programmers and non-technical users!
 """
 
-import os
 import sys
 import subprocess
-from pathlib import Path
 import requests
-from typing import Optional, List
+from typing import List
 
 # Color codes for pretty output
 class Colors:

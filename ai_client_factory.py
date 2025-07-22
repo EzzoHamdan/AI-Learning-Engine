@@ -4,7 +4,7 @@ AI Client Factory with graceful error handling and dynamic provider switching.
 
 import streamlit as st
 import logging
-from typing import Optional, Tuple, Any
+from typing import Tuple, Any
 from openai import OpenAI
 
 from google_ai_client import GoogleAIClient, ChatCompletions

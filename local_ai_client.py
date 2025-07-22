@@ -7,7 +7,7 @@ import requests
 import json
 import time
 import logging
-from typing import Dict, Any, List, Optional, Generator
+from typing import Dict, List, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
