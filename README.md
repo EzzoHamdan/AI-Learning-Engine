@@ -56,16 +56,16 @@ streamlit run app.py
 # 3. Configure your AI provider in the sidebar
 ```
 
-### Option 3: Local AI Setup (Best for Privacy)
+### Option 3: Local AI Setup (Best for Cost)
 ```bash
 # 1. Install Ollama from https://ollama.ai
 # 2. Start Ollama server
 ollama serve
 
-# 3. Pull a model (recommended)
-ollama pull gemma2:2b    # Fast, 2GB RAM
-ollama pull gemma2:9b    # Better quality, 6GB RAM
-ollama pull gemma2:27b   # Best quality, 16GB RAM
+# 3. Pull a model, examples:
+ollama pull gemma2:2b    
+ollama pull gemma2:9b    
+ollama pull gemma2:27b   
 
 # 4. Run the app
 streamlit run app.py
@@ -203,23 +203,21 @@ DEBUG=false
 - 🔑 **API Keys**: Enter directly in the app sidebar
 - 💾 **Save Settings**: Option to persist keys locally
 - 🔄 **Provider Switching**: Change AI providers instantly
-- ⚙️ **Model Selection**: Choose specific models for each provider
+- ⚙️ **Model Selection**: Choose specific models for each provider 
 
 ## 📊 Performance & Scalability
 
 ### Document Processing
 - **File Size**: Up to 50MB supported
 - **Formats**: PDF, DOCX, PPTX with advanced text extraction
-- **Languages**: Automatic language detection and processing
-- **Complex Layouts**: Tables, images, and multi-column support
 
 ### Generation Speed
-- **Quiz Generation**: 5-15 seconds (varies by complexity)
-- **Study Materials**: 10-30 seconds (varies by material type)
-- **Local AI**: Fastest after model loading
+- **Quiz Generation**: 10-30 seconds (varies by complexity and amount of questions)
+- **Study Materials**: 10-30 seconds (varies by material type and demanded task)
+- **Local AI**: Hardware dependent
 - **Cloud AI**: Network dependent
 
-### Resource Usage
+### Resource Usage Regarding Local AI
 - **RAM**: 2-16GB (depends on Local AI model size)
 - **Storage**: 500MB app + 1-30GB models (Local AI only)
 - **CPU**: Modern processor recommended for Local AI
@@ -233,30 +231,15 @@ DEBUG=false
 - **Secure Storage**: API keys encrypted locally (optional)
 
 ### Best Practices
-- 🏠 Use **Local AI** for sensitive documents
+- 🏠 Use **Local AI** for cost-effectiveness
 - 🔐 Never share API keys publicly
 - 🔄 Rotate API keys regularly
 - 💾 Use secure backup for important study materials
 
 ## 🛠️ Troubleshooting
 
-### Local AI Issues
-```bash
-# Check if Ollama is running
-curl http://localhost:[PORT]/api/tags
-
-# List installed models
-ollama list
-
-# Pull desired models
-ollama pull gemma2:2b
-
-# Restart Ollama service
-ollama serve
-```
-
 ### Common Issues
-- **"No AI provider available"**: Configure API keys in sidebar
+- **"No AI provider available"**: Configure API keys in sidebar or create a .env
 - **Slow generation**: Try smaller Local AI models or check network
 - **Upload errors**: Ensure file is under 50MB and valid format
 - **Memory issues**: Use smaller models or close other applications
@@ -267,50 +250,6 @@ ollama serve
 3. 📝 Check terminal/console for error messages
 4. 🔄 Try switching to different AI provider
 5. 🌐 Verify internet connection for cloud providers
-
-## 🚀 Advanced Features
-
-### Customization Options
-- 🎨 **Theme Settings**: Streamlit theme customization
-- 🔤 **Language Support**: Multi-language document processing  
-- 📝 **Custom Prompts**: Advanced users can modify AI prompts
-- 📊 **Export Options**: Save materials as text or structured formats
-
-### Integration Possibilities
-- 📚 **LMS Integration**: Connect with learning management systems
-- 📱 **Mobile Apps**: API-ready for mobile app development
-- 🔗 **Web Integration**: Embed in existing educational platforms
-- 📊 **Analytics**: Custom learning analytics implementation
-
-## 🔮 Future Roadmap
-
-### Near Term (Next Version)
-- 📱 **Mobile-Optimized Interface**
-- 📁 **Bulk Document Processing**
-- 🎨 **Custom Theme Options**
-- 📊 **Enhanced Analytics Dashboard**
-
-### Medium Term
-- 🌐 **Multi-Language Support**
-- 🔗 **LMS Integration**
-- 📤 **Advanced Export Options** (PDF, Word, SCORM)
-- 🤝 **Collaborative Study Features**
-
-### Long Term
-- 🧠 **Adaptive Learning Algorithms**
-- 🎙️ **Voice Interaction Support**
-- 🖼️ **Image and Diagram Processing**
-- 🌍 **Cloud-Hosted Version**
-
-## 🤝 Contributing
-
-We welcome contributions! Here's how to get started:
-
-1. **Fork** the repository
-2. **Create** a feature branch (`git checkout -b feature/amazing-feature`)
-3. **Commit** your changes (`git commit -m 'Add amazing feature'`)  
-4. **Push** to the branch (`git push origin feature/amazing-feature`)
-5. **Open** a Pull Request
 
 ### Development Setup
 ```bash
@@ -330,27 +269,13 @@ isort .
 flake8 .
 ```
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 Acknowledgments
 
 - 🤖 **OpenAI** for GPT API and pioneering conversational AI
 - 🆕 **Google AI** for Gemini models and accessible AI platform
 - 🏠 **Ollama Team** for making local AI accessible to everyone
 - 🎨 **Streamlit** for the amazing web app framework
-- 👥 **Contributors** and users who make this project better every day
 
-## 📞 Support & Community
-
-- 🐛 **Bug Reports**: [GitHub Issues](https://github.com/yourusername/AI-Learning-Engine/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/yourusername/AI-Learning-Engine/discussions)
-- 📧 **Email**: support@ailearningengine.com
-- 📚 **Documentation**: [Wiki](https://github.com/yourusername/AI-Learning-Engine/wiki)
-
----
-
-**🎓 Built for learners, by learners. Transform any document into an interactive learning experience today!**
+**🎓 Built for learners, by a learner. Transform any document into an interactive learning experience today!**
 
 *Made with ❤️ for educational excellence*
