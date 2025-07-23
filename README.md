@@ -256,24 +256,6 @@ DEBUG=false
 4. 🔄 Try switching to different AI provider
 5. 🌐 Verify internet connection for cloud providers
 
-### Development Setup
-```bash
-# Clone repository
-git clone <repository-url>
-cd AI-Learning-Engine
-
-# Install development dependencies
-pip install -r requirements.txt
-
-# Run tests
-python -m pytest tests/
-
-# Format code  
-black .
-isort .
-flake8 .
-```
-
 ## 🙏 Acknowledgments
 
 - 🤖 **OpenAI** for GPT API and pioneering conversational AI
