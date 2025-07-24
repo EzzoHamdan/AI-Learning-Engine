@@ -78,8 +78,24 @@ class SessionManager:
         """Remove any existing config files in cloud deployments for security."""
         if self.user_config_file.exists():
             try:
+                # Read and check if it contains API keys before deleting
+                config_data = {}
+                try:
+                    with open(self.user_config_file, 'r') as f:
+                        config_data = json.load(f)
+                except:
+                    pass
+                
+                # Delete the file
                 os.remove(self.user_config_file)
-                st.sidebar.info("🔒 Removed local config file for security")
+                
+                # Show appropriate message
+                if config_data.get("api_keys"):
+                    st.sidebar.error("🔒 Removed insecure config file containing API keys!")
+                    st.sidebar.info("✅ Your cloud deployment is now secure")
+                else:
+                    st.sidebar.info("🔒 Removed local config file for security")
+                    
                 return True
             except Exception as e:
                 st.sidebar.warning(f"Could not remove config file: {e}")
@@ -112,6 +128,63 @@ GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
             
         except Exception as e:
             st.sidebar.error(f"Failed to create secrets template: {e}")
+    
+    def get_cloud_secrets_status(self) -> dict:
+        """Get status of secrets in cloud deployment without revealing values."""
+        if not self.is_cloud_deployment:
+            return {}
+            
+        status = {}
+        try:
+            if hasattr(st, 'secrets'):
+                # Check if keys exist without revealing their values
+                status['openai_configured'] = bool(st.secrets.get("OPENAI_API_KEY", "").strip())
+                status['google_configured'] = bool(st.secrets.get("GOOGLE_AI_API_KEY", "").strip())
+                status['secrets_accessible'] = True
+            else:
+                status['secrets_accessible'] = False
+        except Exception:
+            status['secrets_accessible'] = False
+            
+        return status
+    
+    def show_cloud_key_removal_guide(self):
+        """Show guide for removing API keys from cloud deployment."""
+        if not self.is_cloud_deployment:
+            return
+            
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🗑️ Remove Old API Keys")
+        
+        if st.sidebar.button("🚨 Show Key Removal Guide"):
+            st.sidebar.markdown("""
+            **To completely remove an API key:**
+            
+            1. Go to **App Settings → Secrets**
+            2. **Delete the entire line** for the key:
+            ```toml
+            # Remove this entire line:
+            # GOOGLE_AI_API_KEY = "old_revoked_key"
+            ```
+            3. **Save** (leave empty if no replacement)
+            4. **Restart** your app
+            
+            ⚠️ **Important:** Deleting the line removes the key completely.
+            """)
+            
+            # Show current status
+            status = self.get_cloud_secrets_status()
+            if status.get('secrets_accessible'):
+                st.sidebar.write("**Current Status:**")
+                if status.get('google_configured'):
+                    st.sidebar.warning("🔑 Google AI key is currently set")
+                else:
+                    st.sidebar.success("✅ Google AI key is not set")
+                    
+                if status.get('openai_configured'):
+                    st.sidebar.info("🔑 OpenAI key is currently set")
+                else:
+                    st.sidebar.info("❌ OpenAI key is not set")
             
     def _get_default_provider(self) -> str:
         """Determine default AI provider based on availability."""
@@ -283,53 +356,83 @@ GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
         if google_key != current_google:
             self.set_api_key("Google AI", google_key)
             
-        # Save configuration option - disabled in cloud deployments
+        # Save configuration option - completely hidden in cloud deployments
         if self.is_cloud_deployment:
-            st.sidebar.warning("🚨 **Cloud Deployment Detected**")
-            st.sidebar.warning("💾 API key saving is disabled for security")
-            st.sidebar.info("💡 Use Streamlit secrets for cloud deployments")
-            save_keys = False
+            # In cloud deployments: completely hide save options and force disable
             st.session_state.save_api_keys = False
+            
+            # Show security notice
+            st.sidebar.warning("🚨 **Cloud Deployment Detected**")
+            st.sidebar.info("� For security: API keys are not saved locally")
+            st.sidebar.info("💡 Use Streamlit secrets manager instead")
+            
         else:
+            # In local development: show save option with clear warning
             save_keys = st.sidebar.checkbox(
                 "💾 Save API keys locally",
                 value=st.session_state.save_api_keys,
-                help="Save API keys to local config file for next session (NOT recommended for cloud deployments)"
+                help="⚠️ ONLY for local development! Never use in cloud deployments for security reasons."
             )
             st.session_state.save_api_keys = save_keys
+            
+            # Show warning about cloud deployments
+            if save_keys:
+                st.sidebar.warning("⚠️ Only use this for local development!")
+                st.sidebar.info("🔐 For cloud deployments, use Streamlit secrets instead")
         
-        # Save button - only show if not in cloud deployment
+        # Save button and secrets guide - different for cloud vs local
         if not self.is_cloud_deployment:
+            # LOCAL DEVELOPMENT: Show save button and local setup
             if st.sidebar.button("💾 Save Configuration"):
                 if self.save_user_config():
-                    st.sidebar.success("✅ Configuration saved!")
+                    st.sidebar.success("✅ Configuration saved locally!")
                 else:
                     st.sidebar.error("❌ Failed to save configuration")
+                    
+            # Show local secrets template option
+            if st.sidebar.button("� Create Local Secrets Template"):
+                self.create_secrets_template()
+                
         else:
-            st.sidebar.info("💡 **For cloud deployments**: Add API keys to Streamlit secrets instead")
+            # CLOUD DEPLOYMENT: Show cloud-specific guidance only
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("🔐 Cloud Security Guide")
+            st.sidebar.info("✅ API key saving is automatically disabled for security")
             
-            # Show example secrets configuration
-            with st.sidebar.expander("📖 Secrets Configuration Guide"):
+            # Show how to manage cloud secrets
+            with st.sidebar.expander("📖 How to Update Cloud Secrets"):
                 st.markdown("""
-                **For Streamlit Community Cloud:**
-                1. Go to your app's settings
-                2. Click on "Secrets"
-                3. Add your API keys like this:
+                **To update your API keys in Streamlit Cloud:**
+                
+                1. Go to your app's **Settings**
+                2. Click on **"Secrets"**
+                3. Update or remove keys:
                 
                 ```toml
-                OPENAI_API_KEY = "your_openai_key_here"
-                GOOGLE_AI_API_KEY = "your_google_ai_key_here"
+                # Add new key:
+                GOOGLE_AI_API_KEY = "new_key_here"
+                
+                # Or remove completely:
+                # GOOGLE_AI_API_KEY = ""
                 ```
                 
-                **For local .streamlit/secrets.toml:**
-                ```toml
-                OPENAI_API_KEY = "your_openai_key_here"
-                GOOGLE_AI_API_KEY = "your_google_ai_key_here"
-                ```
+                4. **Save** and **restart** your app
                 """)
                 
-                if st.button("📁 Create Local Secrets Template"):
-                    self.create_secrets_template()
+            # Show current secrets status (without revealing values)
+            if hasattr(st, 'secrets'):
+                try:
+                    has_openai = bool(st.secrets.get("OPENAI_API_KEY", ""))
+                    has_google = bool(st.secrets.get("GOOGLE_AI_API_KEY", ""))
+                    
+                    st.sidebar.write("**Current Secrets Status:**")
+                    st.sidebar.write(f"🔑 OpenAI: {'✅ Set' if has_openai else '❌ Not set'}")
+                    st.sidebar.write(f"� Google AI: {'✅ Set' if has_google else '❌ Not set'}")
+                except:
+                    st.sidebar.write("**Secrets:** Not accessible or not configured")
+                    
+            # Add key removal guide
+            self.show_cloud_key_removal_guide()
                 
     def render_provider_selector(self) -> str:
         """Render provider selector with status indicators."""
