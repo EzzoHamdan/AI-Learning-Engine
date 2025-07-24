@@ -13,7 +13,38 @@ class SessionManager:
     def __init__(self):
         """Initialize session manager."""
         self.user_config_file = Path("user_config.json")
+        self.is_cloud_deployment = self._detect_cloud_deployment()
         self._init_session_state()
+        
+    def _detect_cloud_deployment(self) -> bool:
+        """Detect if running on Streamlit Community Cloud or other cloud platforms."""
+        # Check for Streamlit Community Cloud environment variables
+        cloud_indicators = [
+            "STREAMLIT_SHARING_MODE",  # Streamlit Community Cloud
+            "STREAMLIT_SERVER_PORT",   # Cloud deployment indicator
+            "GITHUB_REPOSITORY",       # GitHub-based deployment
+            "HEROKU_APP_NAME",        # Heroku deployment
+            "RENDER_SERVICE_NAME",     # Render deployment
+            "VERCEL_URL",             # Vercel deployment
+        ]
+        
+        for indicator in cloud_indicators:
+            if os.getenv(indicator):
+                return True
+                
+        # Additional checks for cloud environments
+        try:
+            # Check if we're in a container or cloud environment
+            if os.path.exists("/.dockerenv"):  # Docker container
+                return True
+            if os.getenv("HOME", "").startswith("/app"):  # Common cloud path
+                return True
+            if "streamlit" in os.getenv("PWD", "").lower():  # Streamlit cloud path
+                return True
+        except:
+            pass
+            
+        return False
         
     def _init_session_state(self):
         """Initialize session state variables."""
@@ -39,6 +70,49 @@ class SessionManager:
         if "save_api_keys" not in st.session_state:
             st.session_state.save_api_keys = False
             
+        # Clean up any existing config files in cloud deployments
+        if self.is_cloud_deployment:
+            self.cleanup_cloud_config()
+            
+    def cleanup_cloud_config(self):
+        """Remove any existing config files in cloud deployments for security."""
+        if self.user_config_file.exists():
+            try:
+                os.remove(self.user_config_file)
+                st.sidebar.info("🔒 Removed local config file for security")
+                return True
+            except Exception as e:
+                st.sidebar.warning(f"Could not remove config file: {e}")
+                return False
+        return True
+    
+    def create_secrets_template(self):
+        """Create a .streamlit/secrets.toml template file."""
+        try:
+            secrets_dir = Path(".streamlit")
+            secrets_dir.mkdir(exist_ok=True)
+            
+            secrets_file = secrets_dir / "secrets.toml"
+            secrets_content = '''# Streamlit Secrets Configuration
+# Add your API keys here for local development
+# For cloud deployments, use the Streamlit Community Cloud secrets manager
+
+OPENAI_API_KEY = "your_openai_api_key_here"
+GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
+
+# Note: Never commit this file to version control!
+# Add .streamlit/secrets.toml to your .gitignore file
+'''
+            
+            with open(secrets_file, 'w') as f:
+                f.write(secrets_content)
+                
+            st.sidebar.success("✅ Created .streamlit/secrets.toml template")
+            st.sidebar.info("📝 Edit the file with your actual API keys")
+            
+        except Exception as e:
+            st.sidebar.error(f"Failed to create secrets template: {e}")
+            
     def _get_default_provider(self) -> str:
         """Determine default AI provider based on availability."""
         # Check environment variables first
@@ -52,27 +126,50 @@ class SessionManager:
             return "Local AI (Ollama)"  # Default fallback
             
     def _load_saved_api_keys(self) -> Dict[str, str]:
-        """Load saved API keys from user config file."""
+        """Load saved API keys from user config file or Streamlit secrets."""
         api_keys = {
-            "openai": os.getenv("OPENAI_API_KEY", ""),
-            "google_ai": os.getenv("GOOGLE_AI_API_KEY", ""),
+            "openai": "",
+            "google_ai": "",
         }
         
-        # Load from user config if exists and user previously chose to save
-        if self.user_config_file.exists():
+        # In cloud deployments, prioritize Streamlit secrets
+        if self.is_cloud_deployment:
+            try:
+                # Try to load from Streamlit secrets
+                if hasattr(st, 'secrets'):
+                    api_keys["openai"] = st.secrets.get("OPENAI_API_KEY", "")
+                    api_keys["google_ai"] = st.secrets.get("GOOGLE_AI_API_KEY", "")
+            except Exception:
+                pass  # Secrets not available or not configured
+        
+        # Fallback to environment variables
+        api_keys["openai"] = api_keys["openai"] or os.getenv("OPENAI_API_KEY", "")
+        api_keys["google_ai"] = api_keys["google_ai"] or os.getenv("GOOGLE_AI_API_KEY", "")
+        
+        # Load from user config only if not in cloud deployment
+        if not self.is_cloud_deployment and self.user_config_file.exists():
             try:
                 with open(self.user_config_file, 'r') as f:
                     user_config = json.load(f)
                     if user_config.get("save_api_keys", False):
                         saved_keys = user_config.get("api_keys", {})
-                        api_keys.update(saved_keys)
+                        # Only update if we don't already have keys from other sources
+                        for key, value in saved_keys.items():
+                            if not api_keys.get(key):
+                                api_keys[key] = value
             except Exception as e:
-                st.warning(f"Could not load saved configuration: {e}")
+                if not self.is_cloud_deployment:  # Only show warning for local deployments
+                    st.warning(f"Could not load saved configuration: {e}")
                 
         return api_keys
         
     def save_user_config(self):
-        """Save user configuration to file if requested."""
+        """Save user configuration to file if requested and not in cloud deployment."""
+        if self.is_cloud_deployment:
+            st.error("🚨 **Security Warning**: API key saving is disabled in cloud deployments for security reasons!")
+            st.error("💡 **Recommendation**: Use Streamlit secrets instead for cloud deployments.")
+            return False
+            
         if st.session_state.save_api_keys:
             try:
                 config = {
@@ -186,20 +283,53 @@ class SessionManager:
         if google_key != current_google:
             self.set_api_key("Google AI", google_key)
             
-        # Save configuration option
-        save_keys = st.sidebar.checkbox(
-            "💾 Save API keys locally",
-            value=st.session_state.save_api_keys,
-            help="Save API keys to local config file for next session"
-        )
-        st.session_state.save_api_keys = save_keys
+        # Save configuration option - disabled in cloud deployments
+        if self.is_cloud_deployment:
+            st.sidebar.warning("🚨 **Cloud Deployment Detected**")
+            st.sidebar.warning("💾 API key saving is disabled for security")
+            st.sidebar.info("💡 Use Streamlit secrets for cloud deployments")
+            save_keys = False
+            st.session_state.save_api_keys = False
+        else:
+            save_keys = st.sidebar.checkbox(
+                "💾 Save API keys locally",
+                value=st.session_state.save_api_keys,
+                help="Save API keys to local config file for next session (NOT recommended for cloud deployments)"
+            )
+            st.session_state.save_api_keys = save_keys
         
-        # Save button
-        if st.sidebar.button("💾 Save Configuration"):
-            if self.save_user_config():
-                st.sidebar.success("✅ Configuration saved!")
-            else:
-                st.sidebar.error("❌ Failed to save configuration")
+        # Save button - only show if not in cloud deployment
+        if not self.is_cloud_deployment:
+            if st.sidebar.button("💾 Save Configuration"):
+                if self.save_user_config():
+                    st.sidebar.success("✅ Configuration saved!")
+                else:
+                    st.sidebar.error("❌ Failed to save configuration")
+        else:
+            st.sidebar.info("💡 **For cloud deployments**: Add API keys to Streamlit secrets instead")
+            
+            # Show example secrets configuration
+            with st.sidebar.expander("📖 Secrets Configuration Guide"):
+                st.markdown("""
+                **For Streamlit Community Cloud:**
+                1. Go to your app's settings
+                2. Click on "Secrets"
+                3. Add your API keys like this:
+                
+                ```toml
+                OPENAI_API_KEY = "your_openai_key_here"
+                GOOGLE_AI_API_KEY = "your_google_ai_key_here"
+                ```
+                
+                **For local .streamlit/secrets.toml:**
+                ```toml
+                OPENAI_API_KEY = "your_openai_key_here"
+                GOOGLE_AI_API_KEY = "your_google_ai_key_here"
+                ```
+                """)
+                
+                if st.button("📁 Create Local Secrets Template"):
+                    self.create_secrets_template()
                 
     def render_provider_selector(self) -> str:
         """Render provider selector with status indicators."""
