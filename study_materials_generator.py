@@ -604,21 +604,18 @@ class StudyMaterialsGenerator:
             summary = self.generate_comprehensive_summary(text, "detailed")
             cheat_sheet = self.generate_cheat_sheet(text, "comprehensive")
             flashcards = self.generate_flashcards(text, 15, "mixed")
-            outline = self.generate_study_outline(text, "detailed")
             key_terms = self.generate_key_terms(text, 20)
             
         elif guide_type == "exam_prep":
             summary = self.generate_comprehensive_summary(text, "concise")
             cheat_sheet = self.generate_cheat_sheet(text, "quick_ref")
             flashcards = self.generate_flashcards(text, 20, "mixed")
-            outline = self.generate_study_outline(text, "comprehensive")
             key_terms = self.generate_key_terms(text, 25)
             
         else:  # quick_review
             summary = self.generate_comprehensive_summary(text, "bullet_points")
             cheat_sheet = self.generate_cheat_sheet(text, "definitions")
             flashcards = self.generate_flashcards(text, 10, "basic")
-            outline = self.generate_study_outline(text, "overview")
             key_terms = self.generate_key_terms(text, 10)
         
         # Combine all components
@@ -630,7 +627,6 @@ class StudyMaterialsGenerator:
                 "summary": summary,
                 "cheat_sheet": cheat_sheet,
                 "flashcards": flashcards,
-                "outline": outline,
                 "key_terms": key_terms
             },
             "study_plan": self._generate_study_plan(guide_type),

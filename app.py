@@ -655,11 +655,6 @@ def display_complete_study_guide(guide_data):
         with st.expander("📖 Summary", expanded=True):
             display_summary(components['summary'])
     
-    # Study Outline  
-    if 'outline' in components and components['outline']:
-        with st.expander("📋 Study Outline", expanded=False):
-            display_outline(components['outline'])
-    
     # Key Terms
     if 'key_terms' in components and components['key_terms']:
         with st.expander("📚 Key Terms & Definitions", expanded=False):
@@ -776,7 +771,7 @@ def display_flashcards(flashcard_data):
     # Initialize flashcard session state
     if "current_flashcard" not in st.session_state:
         st.session_state.current_flashcard = 0
-        st.session_state.show_answer = False
+        st.session_state.flashcard_answer_visible = False
         st.session_state.flashcard_stats = {"correct": 0, "incorrect": 0, "skipped": 0}
     
     current_card = flashcards[st.session_state.current_flashcard]
@@ -805,12 +800,12 @@ def display_flashcards(flashcard_data):
         st.write(current_card.get('front', 'No question available'))
         
         # Hint if available
-        if current_card.get('hint') and not st.session_state.show_answer:
+        if current_card.get('hint') and not st.session_state.flashcard_answer_visible:
             with st.expander("💡 Hint"):
                 st.write(current_card['hint'])
         
         # Answer section
-        if st.session_state.show_answer:
+        if st.session_state.flashcard_answer_visible:
             st.markdown("### ✅ Answer:")
             st.success(current_card.get('back', 'No answer available'))
             
@@ -830,11 +825,11 @@ def display_flashcards(flashcard_data):
                     next_card()
             with col4:
                 if st.button("🔄 Flip Back", key="flip_back"):
-                    st.session_state.show_answer = False
+                    st.session_state.flashcard_answer_visible = False
                     st.rerun()
         else:
             if st.button("🔄 Show Answer", key="show_answer", type="primary"):
-                st.session_state.show_answer = True
+                st.session_state.flashcard_answer_visible = True
                 st.rerun()
     
     # Navigation
@@ -842,7 +837,7 @@ def display_flashcards(flashcard_data):
     with col1:
         if st.button("⬅️ Previous") and st.session_state.current_flashcard > 0:
             st.session_state.current_flashcard -= 1
-            st.session_state.show_answer = False
+            st.session_state.flashcard_answer_visible = False
             st.rerun()
     with col2:
         if st.button("🔄 Shuffle Cards"):
@@ -850,13 +845,13 @@ def display_flashcards(flashcard_data):
             random.shuffle(flashcards)
             flashcard_data['flashcards'] = flashcards
             st.session_state.current_flashcard = 0
-            st.session_state.show_answer = False
+            st.session_state.flashcard_answer_visible = False
             st.success("Cards shuffled!")
             st.rerun()
     with col3:
         if st.button("➡️ Next") and st.session_state.current_flashcard < total_cards - 1:
             st.session_state.current_flashcard += 1
-            st.session_state.show_answer = False
+            st.session_state.flashcard_answer_visible = False
             st.rerun()
     
     # Study tips
@@ -872,7 +867,7 @@ def next_card():
         st.session_state.current_flashcard += 1
     else:
         st.session_state.current_flashcard = 0  # Loop back to beginning
-    st.session_state.show_answer = False
+    st.session_state.flashcard_answer_visible = False
     st.rerun()
 
 def display_outline(outline_data):
@@ -1475,11 +1470,11 @@ def main():
         - ⚡ **OpenAI**: Traditional GPT models for reference
         
         ### 📚 **Study Materials Available:**
-        - **📖 Complete Study Guide**: Comprehensive package with all materials + study plan
+        - **📖 Complete Study Guide**: Comprehensive package with summary, cheat sheet, flashcards, key terms + study plan
         - **📝 Summaries**: Detailed, concise, or bullet-point summaries
         - **📋 Cheat Sheets**: Quick reference sheets with key concepts
         - **🔄 Interactive Flashcards**: Self-paced flashcards with difficulty levels
-        - **📊 Study Outlines**: Structured hierarchical outlines  
+        - **📊 Study Outlines**: Structured hierarchical outlines (available separately)
         - **🔖 Key Terms**: Important terminology with definitions
         
         ### Question Types Available:
