@@ -1039,7 +1039,7 @@ def generate_study_materials_content(final_text, material_type, local_vars):
                 client,
                 use_google_ai=(st.session_state.ai_provider == "Google AI"),
                 use_local_ai=(st.session_state.ai_provider == "Local AI (Ollama)")
-            )
+            ) 
             
             # Generate based on material type
             if material_type == "Complete Study Guide":

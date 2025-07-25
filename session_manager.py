@@ -17,35 +17,10 @@ class SessionManager:
         self._init_session_state()
         
     def _detect_cloud_deployment(self) -> bool:
-        """Detect if running on Streamlit Community Cloud or other cloud platforms."""
-        # Check for Streamlit Community Cloud environment variables
-        cloud_indicators = [
-            "STREAMLIT_SHARING_MODE",  # Streamlit Community Cloud
-            "STREAMLIT_SERVER_PORT",   # Cloud deployment indicator
-            "GITHUB_REPOSITORY",       # GitHub-based deployment
-            "HEROKU_APP_NAME",        # Heroku deployment
-            "RENDER_SERVICE_NAME",     # Render deployment
-            "VERCEL_URL",             # Vercel deployment
-        ]
-        
-        for indicator in cloud_indicators:
-            if os.getenv(indicator):
-                return True
-                
-        # Additional checks for cloud environments
-        try:
-            # Check if we're in a container or cloud environment
-            if os.path.exists("/.dockerenv"):  # Docker container
-                return True
-            if os.getenv("HOME", "").startswith("/app"):  # Common cloud path
-                return True
-            if "streamlit" in os.getenv("PWD", "").lower():  # Streamlit cloud path
-                return True
-        except:
-            pass
-            
-        return False
-        
+        """Detect if running locally or in cloud deployment based on LOCALRUN variable."""
+        localrun = os.environ.get("LOCALRUN", "false").lower()
+        return localrun != "true"  
+         
     def _init_session_state(self):
         """Initialize session state variables."""
         # AI Provider selection
@@ -238,10 +213,6 @@ GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
         
     def save_user_config(self):
         """Save user configuration to file if requested and not in cloud deployment."""
-        if self.is_cloud_deployment:
-            st.error("🚨 **Security Warning**: API key saving is disabled in cloud deployments for security reasons!")
-            st.error("💡 **Recommendation**: Use Streamlit secrets instead for cloud deployments.")
-            return False
             
         if st.session_state.save_api_keys:
             try:
@@ -356,17 +327,7 @@ GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
         if google_key != current_google:
             self.set_api_key("Google AI", google_key)
             
-        # Save configuration option - completely hidden in cloud deployments
-        if self.is_cloud_deployment:
-            # In cloud deployments: completely hide save options and force disable
-            st.session_state.save_api_keys = False
-            
-            # Show security notice
-            st.sidebar.warning("🚨 **Cloud Deployment Detected**")
-            st.sidebar.info("� For security: API keys are not saved locally")
-            st.sidebar.info("💡 Use Streamlit secrets manager instead")
-            
-        else:
+        if not self.is_cloud_deployment:
             # In local development: show save option with clear warning
             save_keys = st.sidebar.checkbox(
                 "💾 Save API keys locally",
@@ -392,32 +353,6 @@ GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
             # Show local secrets template option
             if st.sidebar.button("� Create Local Secrets Template"):
                 self.create_secrets_template()
-                
-        else:
-            # CLOUD DEPLOYMENT: Show cloud-specific guidance only
-            st.sidebar.markdown("---")
-            st.sidebar.subheader("🔐 Cloud Security Guide")
-            st.sidebar.info("✅ API key saving is automatically disabled for security")
-            
-            # Show how to manage cloud secrets
-            with st.sidebar.expander("📖 How to Update Cloud Secrets"):
-                st.markdown("""
-                **To update your API keys in Streamlit Cloud:**
-                
-                1. Go to your app's **Settings**
-                2. Click on **"Secrets"**
-                3. Update or remove keys:
-                
-                ```toml
-                # Add new key:
-                GOOGLE_AI_API_KEY = "new_key_here"
-                
-                # Or remove completely:
-                # GOOGLE_AI_API_KEY = ""
-                ```
-                
-                4. **Save** and **restart** your app
-                """)
                 
             # Show current secrets status (without revealing values)
             if hasattr(st, 'secrets'):
