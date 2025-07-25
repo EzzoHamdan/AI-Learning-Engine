@@ -8,6 +8,15 @@ Supports **Local AI (Ollama)**, **Google AI**, and **OpenAI** with complete priv
 
 ## ✨ Key Features
 
+### 📊 **Learning Analytics & Progress Tracking** 🆕
+- **📈 Performance Analytics**: Track quiz scores and improvement trends over time
+- **🎯 Strength/Weakness Analysis**: AI-powered identification of learning gaps
+- **🚀 Learning Velocity**: Monitor your rate of improvement and acceleration
+- **🔥 Study Streaks**: Track daily learning consistency
+- **💡 Personalized Recommendations**: Get targeted study suggestions
+- **📋 Detailed Reports**: Export comprehensive analytics data
+- **🎚️ Goal Setting**: Set and monitor learning objectives
+
 ### 🤖 **Multiple AI Provider Support**
 - **🏠 Local AI (Ollama)**: Run completely locally - **FREE & 100% PRIVATE**
 - **🆕 Google AI**: Latest Gemini models with excellent performance  
@@ -36,6 +45,14 @@ Supports **Local AI (Ollama)**, **Google AI**, and **OpenAI** with complete priv
 - **💾 Session Persistence**: Save settings and continue where you left off
 - **🎨 Intuitive Interface**: Clean, responsive Streamlit-based UI
 - **📱 Smart Responsive**: Works on desktop and mobile devices
+- **📊 Integrated Analytics**: Switch seamlessly between study and analytics modes
+
+### 📊 **Analytics Dashboard**
+- **Performance Tracking**: Visualize quiz scores and trends
+- **Learning Insights**: Identify patterns in your study habits
+- **Progress Monitoring**: Track goals and learning streaks
+- **Engagement Metrics**: Monitor feature usage and study time
+- **Data Export**: Download analytics for external analysis
 
 ## 🚀 Quick Start
 
@@ -94,6 +111,14 @@ streamlit run app.py
 5. **Study**: Use interactive features like flashcard self-testing
 6. **Track Progress**: Monitor your learning with built-in analytics
 
+### For Learning Analytics:
+1. **Switch to Analytics Mode**: Use sidebar navigation
+2. **View Dashboard**: See comprehensive learning overview
+3. **Explore Insights**: Check performance trends and patterns
+4. **Set Goals**: Configure learning objectives and track progress
+5. **Export Data**: Download detailed analytics reports
+6. **Get Recommendations**: Receive AI-powered study suggestions
+
 ### 🏠 Why Choose Local AI?
 
 **Perfect for students who want:**
@@ -111,6 +136,7 @@ AI-Learning-Engine/
 │   ├── app.py                          # Main Streamlit application
 │   ├── study_materials_generator.py    # Study materials engine
 │   ├── open_ended_processor.py         # Quiz processing & AI scoring
+│   ├── learning_analytics.py           # Analytics & progress tracking
 │   └── session_manager.py              # Session state management
 │
 ├── 🤖 AI Integration  

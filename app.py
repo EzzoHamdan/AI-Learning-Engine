@@ -4,6 +4,8 @@ import docx
 from pptx import Presentation
 import json
 import re
+import time
+from datetime import datetime
 from dotenv import load_dotenv
 
 # Auto-configuration for easy setup
@@ -25,6 +27,7 @@ from session_manager import SessionManager
 from ai_client_factory import AIClientFactory
 from local_ai_client import is_ollama_running, list_available_models
 from study_materials_generator import StudyMaterialsGenerator
+from learning_analytics import LearningAnalytics, analytics
 
 # Setup logging
 logger = setup_logging()
@@ -506,6 +509,23 @@ def display_results(questions, user_answers):
         overall_percentage = (traditional_correct / total_traditional) * 100
         st.subheader(f"📊 Overall Score: {traditional_correct}/{total_traditional} ({overall_percentage:.1f}%) {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level")
     
+    # Prepare performance stats for analytics tracking
+    performance_stats = {
+        "traditional_correct": traditional_correct,
+        "total_traditional": total_traditional,
+        "open_ended_scores": open_ended_scores,
+        "total_open_ended_marks": total_open_ended_marks,
+        "earned_open_ended_marks": earned_open_ended_marks,
+        "overall_percentage": overall_percentage
+    }
+    
+    # Track quiz completion in analytics
+    analytics.track_quiz_completion(
+        quiz_data=st.session_state.quiz_data,
+        user_answers=user_answers,
+        performance_stats=performance_stats
+    )
+    
     # Score interpretation
     scoring_config = SCORING_CONFIG.get(difficulty, SCORING_CONFIG['Standard'])
     
@@ -814,14 +834,17 @@ def display_flashcards(flashcard_data):
             with col1:
                 if st.button("😊 Got it right!", key="correct"):
                     st.session_state.flashcard_stats["correct"] += 1
+                    analytics.track_flashcard_interaction("correct")
                     next_card()
             with col2:
                 if st.button("😔 Got it wrong", key="incorrect"):
                     st.session_state.flashcard_stats["incorrect"] += 1
+                    analytics.track_flashcard_interaction("incorrect")
                     next_card()
             with col3:
                 if st.button("⏭️ Skip", key="skip"):
                     st.session_state.flashcard_stats["skipped"] += 1
+                    analytics.track_flashcard_interaction("skipped")
                     next_card()
             with col4:
                 if st.button("🔄 Flip Back", key="flip_back"):
@@ -830,6 +853,7 @@ def display_flashcards(flashcard_data):
         else:
             if st.button("🔄 Show Answer", key="show_answer", type="primary"):
                 st.session_state.flashcard_answer_visible = True
+                analytics.track_flashcard_interaction("viewed")
                 st.rerun()
     
     # Navigation
@@ -1010,6 +1034,10 @@ def generate_quiz_content(final_text, quiz_type, num_questions, difficulty, mcq_
             else:
                 quiz_data = generate_quiz(final_text, quiz_type, num_questions, difficulty)
             
+            # Track analytics
+            analytics.track_feature_usage("quiz_generation")
+            analytics.track_ai_provider_usage(st.session_state.ai_provider)
+            
             if "error" not in quiz_data:
                 st.session_state.quiz_generated = True
                 st.session_state.quiz_data = quiz_data
@@ -1032,6 +1060,8 @@ def generate_quiz_content(final_text, quiz_type, num_questions, difficulty, mcq_
 
 def generate_study_materials_content(final_text, material_type, local_vars):
     """Generate study materials content with error handling."""
+    generation_start_time = time.time()
+    
     with st.spinner(f"📚 Generating {material_type.lower()} using {ai_provider}..."):
         try:
             # Initialize study materials generator
@@ -1064,7 +1094,15 @@ def generate_study_materials_content(final_text, material_type, local_vars):
             else:
                 materials_data = {"error": f"Unknown material type: {material_type}"}
             
-            if "error" not in materials_data:
+            generation_time = time.time() - generation_start_time
+            success = "error" not in materials_data
+            
+            # Track materials generation
+            analytics.track_materials_generation(material_type, generation_time, success)
+            analytics.track_feature_usage("study_materials")
+            analytics.track_ai_provider_usage(st.session_state.ai_provider)
+            
+            if success:
                 st.session_state.materials_generated = True
                 st.session_state.materials_data = materials_data
                 st.session_state.material_type = material_type
@@ -1074,6 +1112,9 @@ def generate_study_materials_content(final_text, material_type, local_vars):
                 st.error(f"❌ Failed to generate {material_type.lower()}: {materials_data.get('error', 'Unknown error')}")
                 
         except Exception as e:
+            generation_time = time.time() - generation_start_time
+            analytics.track_materials_generation(material_type, generation_time, False)
+            
             st.error(f"❌ Error during {material_type.lower()} generation: {str(e)}")
             # Add debug information
             st.write("**Debug Info:**")
@@ -1086,6 +1127,20 @@ def generate_study_materials_content(final_text, material_type, local_vars):
 def main():
     global client, ai_provider, client_successful
     
+    # Main navigation
+    st.sidebar.title("🎯 Navigation")
+    app_mode = st.sidebar.selectbox(
+        "Choose App Mode",
+        ["📚 Quiz & Study Materials", "📊 Learning Analytics"],
+        help="Switch between main app features and learning analytics"
+    )
+    
+    if app_mode == "📊 Learning Analytics":
+        # Display the analytics dashboard
+        analytics.display_analytics_dashboard()
+        return
+    
+    # Main app continues here
     st.title("📚 AI Interactive Quiz & Study Materials Generator")
     
     # Display AI provider info - use the actual working provider, not the selected one
@@ -1115,9 +1170,9 @@ def main():
     if "summarization_in_progress" not in st.session_state:
         st.session_state.summarization_in_progress = False
     
-    # Sidebar for quiz configuration
+    # Sidebar for app configuration
     with st.sidebar:
-        st.header("Quiz Configuration")
+        st.header("App Configuration")
         
         # AI Provider Selection with status
         selected_provider = session_manager.render_provider_selector()
@@ -1322,6 +1377,14 @@ def main():
             st.session_state.original_text = ""
             st.session_state.summarization_in_progress = False
             st.session_state.quiz_generated = False
+            
+            # Track document upload
+            analytics.track_feature_usage("document_upload")
+            analytics.add_to_learning_history("document_upload", {
+                "filename": uploaded_file.name,
+                "file_type": uploaded_file.name.split(".")[-1],
+                "file_size": uploaded_file.size
+            })
         
         # Extract text only if we don't have it already
         if not st.session_state.original_text:
@@ -1445,12 +1508,48 @@ def main():
     
     else:
         # Welcome screen with improved guidance
+        
+        # Quick Analytics Preview
+        if st.session_state.quiz_analytics["total_quizzes"] > 0 or st.session_state.materials_analytics["total_materials"] > 0:
+            st.subheader("📊 Quick Analytics Overview")
+            col1, col2, col3, col4 = st.columns(4)
+            
+            with col1:
+                st.metric("Quizzes Completed", st.session_state.quiz_analytics["total_quizzes"])
+            
+            with col2:
+                if st.session_state.quiz_analytics["performance_over_time"]:
+                    scores = [entry["score_percentage"] for entry in st.session_state.quiz_analytics["performance_over_time"]]
+                    avg_score = sum(scores) / len(scores)
+                    st.metric("Average Score", f"{avg_score:.1f}%")
+                else:
+                    st.metric("Average Score", "N/A")
+            
+            with col3:
+                st.metric("Materials Generated", st.session_state.materials_analytics["total_materials"])
+            
+            with col4:
+                session_duration = datetime.now() - st.session_state.session_start_time
+                hours, remainder = divmod(session_duration.total_seconds(), 3600)
+                minutes, _ = divmod(remainder, 60)
+                st.metric("Session Time", f"{int(hours):02d}:{int(minutes):02d}")
+            
+            # Quick recommendation
+            if st.session_state.quiz_analytics["total_quizzes"] >= 2:
+                analysis = analytics.get_strength_weakness_analysis()
+                if analysis["recommendations"]:
+                    st.info(f"💡 **Quick Tip**: {analysis['recommendations'][0]}")
+            
+            st.info("📊 **View detailed analytics by switching to Analytics mode in the sidebar!**")
+            st.markdown("---")
+        
         st.markdown("""
         ## Welcome to the AI Interactive Quiz Generator & Study Materials Creator! 🎓
         
-        This application creates personalized, interactive quizzes and comprehensive study materials from your documents with **advanced AI scoring** and **graceful error handling**.
+        This application creates personalized, interactive quizzes and comprehensive study materials from your documents with **advanced AI scoring**, **graceful error handling**, and **comprehensive learning analytics**.
         
         ### 🆕 **New Features:**
+        - **📊 Learning Analytics**: Track your progress, performance trends, and learning patterns
         - **📝 Study Materials Generation**: Create summaries, cheat sheets, flashcards, and more!
         - **🔧 Graceful Error Handling**: App now works even if AI providers have issues
         - **⚡ Dynamic Provider Switching**: Change AI providers instantly without restarting
@@ -1493,6 +1592,18 @@ def main():
         1. **Configure AI Provider** in the sidebar →
         2. **Enter API keys** (if needed)
         3. **Upload a document** to begin!
+        4. **Check Analytics** to track your learning progress
+        
+        ### 📊 **Learning Analytics Features:**
+        - **📈 Performance Tracking**: Monitor quiz scores and improvement trends
+        - **🎯 Strength/Weakness Analysis**: Identify areas for focused study
+        - **🚀 Learning Velocity**: Track your rate of improvement over time
+        - **📋 Detailed Insights**: Question-by-question performance analysis
+        - **🔥 Study Streaks**: Monitor daily learning consistency
+        - **💡 Personalized Recommendations**: Get AI-powered study suggestions
+        - **📊 Comprehensive Reports**: Export detailed analytics data
+        
+        *Switch to Analytics mode using the sidebar navigation!*
         """)
         
         # Provider status overview
