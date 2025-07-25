@@ -17,9 +17,6 @@ def ensure_env_file_exists():
         default_env = """# AI Quiz Generator Configuration
 # Auto-generated default configuration
 
-# Deployment Environment
-LOCALRUN=true
-
 # API Keys (add your keys here when you get them)
 OPENAI_API_KEY=""
 GOOGLE_AI_API_KEY="" 

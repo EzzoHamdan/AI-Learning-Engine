@@ -17,9 +17,17 @@ class SessionManager:
         self._init_session_state()
         
     def _detect_cloud_deployment(self) -> bool:
-        """Detect if running locally or in cloud deployment based on LOCALRUN variable."""
-        localrun = os.environ.get("LOCALRUN", "false").lower()
-        return localrun != "true"  
+        """Detect if running in cloud deployment by checking if Streamlit secrets are accessible."""
+        try:
+            # If we can access st.secrets, we're running in Streamlit 
+            if hasattr(st, 'secrets'):
+                # Try to access secrets 
+                _ = st.secrets
+                return True
+            return False
+        except Exception:
+            # If accessing secrets fails, we're probably running locally
+            return False  
          
     def _init_session_state(self):
         """Initialize session state variables."""
@@ -76,52 +84,6 @@ class SessionManager:
                 st.sidebar.warning(f"Could not remove config file: {e}")
                 return False
         return True
-    
-    def create_secrets_template(self):
-        """Create a .streamlit/secrets.toml template file."""
-        try:
-            secrets_dir = Path(".streamlit")
-            secrets_dir.mkdir(exist_ok=True)
-            
-            secrets_file = secrets_dir / "secrets.toml"
-            secrets_content = '''# Streamlit Secrets Configuration
-# Add your API keys here for local development
-# For cloud deployments, use the Streamlit Community Cloud secrets manager
-
-OPENAI_API_KEY = "your_openai_api_key_here"
-GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
-
-# Note: Never commit this file to version control!
-# Add .streamlit/secrets.toml to your .gitignore file
-'''
-            
-            with open(secrets_file, 'w') as f:
-                f.write(secrets_content)
-                
-            st.sidebar.success("✅ Created .streamlit/secrets.toml template")
-            st.sidebar.info("📝 Edit the file with your actual API keys")
-            
-        except Exception as e:
-            st.sidebar.error(f"Failed to create secrets template: {e}")
-    
-    def get_cloud_secrets_status(self) -> dict:
-        """Get status of secrets in cloud deployment without revealing values."""
-        if not self.is_cloud_deployment:
-            return {}
-            
-        status = {}
-        try:
-            if hasattr(st, 'secrets'):
-                # Check if keys exist without revealing their values
-                status['openai_configured'] = bool(st.secrets.get("OPENAI_API_KEY", "").strip())
-                status['google_configured'] = bool(st.secrets.get("GOOGLE_AI_API_KEY", "").strip())
-                status['secrets_accessible'] = True
-            else:
-                status['secrets_accessible'] = False
-        except Exception:
-            status['secrets_accessible'] = False
-            
-        return status
     
     def show_cloud_key_removal_guide(self):
         """Show guide for removing API keys from cloud deployment."""
@@ -350,9 +312,6 @@ GOOGLE_AI_API_KEY = "your_google_ai_api_key_here"
                 else:
                     st.sidebar.error("❌ Failed to save configuration")
                     
-            # Show local secrets template option
-            if st.sidebar.button("� Create Local Secrets Template"):
-                self.create_secrets_template()
                 
             # Show current secrets status (without revealing values)
             if hasattr(st, 'secrets'):
