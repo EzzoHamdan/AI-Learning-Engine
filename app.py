@@ -586,9 +586,10 @@ def display_results(questions, user_answers):
                     if scoring_result.get('improvements'):
                         st.info("**Areas for Improvement:** " + ", ".join(scoring_result['improvements']))
                     
-                    # Show model answer
-                    with st.expander("View Model Answer"):
-                        st.write(question['model_answer'])
+                    # Show model answer as plain markdown — Streamlit forbids
+                    # nesting an expander inside the outer question expander.
+                    st.markdown("**Model answer:**")
+                    st.info(question['model_answer'])
             
         else:
             # Traditional MCQ/T/F questions
