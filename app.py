@@ -1598,8 +1598,8 @@ def main():
         - **📝 Study Materials Generation**: Create summaries, cheat sheets, flashcards, and more!
         - **🔧 Graceful Error Handling**: App now works even if AI providers have issues
         - **⚡ Dynamic Provider Switching**: Change AI providers instantly without restarting
-        - **🔐 Runtime API Key Management**: Enter API keys directly in the app and save them
-        - **💾 Configuration Persistence**: Optionally save your settings for next time
+        - **🔐 Runtime API Key Management**: Enter API keys directly in the app for the current session
+        - **🌱 Environment Config**: Or set keys in your .env / Streamlit secrets to persist them
         
         ### How it works:
         1. 📁 **Upload** a PDF, Word, or PowerPoint file
@@ -1627,10 +1627,9 @@ def main():
         - 📝 **Open-ended**: Write detailed answers scored by AI
         - 🎯 **Complete Mix**: Combination of all question types
         
-        ### 🔐 **New API Key Management:**
-        - Enter API keys directly in the sidebar
-        - Choose to save them locally for next session
-        - No more .env file editing required!
+        ### 🔐 **API Key Management:**
+        - Enter API keys directly in the sidebar (used for the current session)
+        - Or set them in your .env file / Streamlit secrets to persist across sessions
         - Secure password input fields
         
         **Get started by:**

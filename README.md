@@ -228,11 +228,15 @@ OPENAI_API_KEY=your_openai_key_here
 
 # Debug mode
 DEBUG=false
+
+# Set to true only when hosting the app (e.g. Streamlit Cloud).
+# Controls cloud-deployment behavior; leave unset/false for local use.
+DEPLOYED=false
 ```
 
 ### Runtime Configuration
-- 🔑 **API Keys**: Enter directly in the app sidebar
-- 💾 **Save Settings**: Option to persist keys locally
+- 🔑 **API Keys**: Enter directly in the app sidebar (used for the current session)
+- 🌱 **Persistent keys**: Set `OPENAI_API_KEY` / `GOOGLE_AI_API_KEY` in your environment (`.env`) or, when deployed, in Streamlit secrets
 - 🔄 **Provider Switching**: Change AI providers instantly
 - ⚙️ **Model Selection**: Choose specific models for each provider 
 
@@ -259,7 +263,7 @@ DEBUG=false
 - **Local AI**: ✅ **Zero data sharing** - everything stays on your device
 - **Cloud AI**: ⚠️ Data sent to provider APIs (encrypted in transit)
 - **No Analytics**: No usage tracking or data collection
-- **Secure Storage**: API keys encrypted locally (optional)
+- **Key Storage**: API keys are session-scoped in the app, or read from environment variables / Streamlit secrets — the app never writes keys to disk
 
 ### Best Practices
 - 🏠 Use **Local AI** for privacy and unlimited studying
