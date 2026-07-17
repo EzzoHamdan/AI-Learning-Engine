@@ -873,17 +873,17 @@ def display_flashcards(flashcard_data):
                 if st.button("😊 Got it right!", key="correct"):
                     st.session_state.flashcard_stats["correct"] += 1
                     analytics.track_flashcard_interaction("correct")
-                    next_card()
+                    next_card(total_cards)
             with col2:
                 if st.button("😔 Got it wrong", key="incorrect"):
                     st.session_state.flashcard_stats["incorrect"] += 1
                     analytics.track_flashcard_interaction("incorrect")
-                    next_card()
+                    next_card(total_cards)
             with col3:
                 if st.button("⏭️ Skip", key="skip"):
                     st.session_state.flashcard_stats["skipped"] += 1
                     analytics.track_flashcard_interaction("skipped")
-                    next_card()
+                    next_card(total_cards)
             with col4:
                 if st.button("🔄 Flip Back", key="flip_back"):
                     st.session_state.flashcard_answer_visible = False
@@ -923,9 +923,14 @@ def display_flashcards(flashcard_data):
             for tip in study_tips:
                 st.write(f"• {tip}")
 
-def next_card():
-    """Move to next flashcard."""
-    if st.session_state.current_flashcard < len(st.session_state.get('flashcards', [])) - 1:
+def next_card(total_cards):
+    """Advance to the next flashcard, looping back to the first after the last.
+
+    total_cards must be the real deck length. The old version read
+    st.session_state['flashcards'], a key nothing ever set, so the length was
+    always 0 and every self-assessment jumped back to card 1 (BUG-3).
+    """
+    if st.session_state.current_flashcard < total_cards - 1:
         st.session_state.current_flashcard += 1
     else:
         st.session_state.current_flashcard = 0  # Loop back to beginning
