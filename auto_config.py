@@ -4,8 +4,6 @@ Provides smart defaults and graceful fallbacks for easy setup.
 """
 
 import os
-import subprocess
-import sys
 from typing import Tuple
 import requests
 
@@ -35,30 +33,6 @@ DEBUG=false
         with open(env_path, 'w') as f:
             f.write(default_env)
         print("ℹ️ Created default .env configuration file")
-
-
-def check_and_install_dependencies():
-    """Check if all required packages are installed, install if missing."""
-    try:
-        # Check for key packages
-        import streamlit
-        import openai
-        import fitz  # PyMuPDF
-        import docx
-        import pptx
-        return True
-    except ImportError as e:
-        print(f"⚠️ Missing dependency: {e.name}")
-        print("📦 Installing required packages...")
-        try:
-            subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], 
-                          check=True)
-            print("✅ Packages installed successfully!")
-            return True
-        except subprocess.CalledProcessError:
-            print("❌ Failed to install packages automatically")
-            print("Please run: pip install -r requirements.txt")
-            return False
 
 
 def detect_available_providers() -> dict:
@@ -93,7 +67,6 @@ def detect_available_providers() -> dict:
 def get_setup_status() -> Tuple[bool, str, list]:
     """Get overall setup status and recommendations."""
     ensure_env_file_exists()
-    deps_ok = check_and_install_dependencies()
     providers = detect_available_providers()
     
     available_providers = []
