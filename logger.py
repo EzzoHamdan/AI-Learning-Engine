@@ -51,30 +51,3 @@ def setup_logging(log_level: str = "INFO", log_to_file: bool = True) -> logging.
             logger.warning(f"Could not set up file logging: {e}")
     
     return logger
-
-
-def log_function_call(func):
-    """Decorator to log function calls with parameters and execution time."""
-    import functools
-    import time
-    
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        logger = logging.getLogger("quiz_generator")
-        start_time = time.time()
-        
-        # Log function call
-        logger.debug(f"Calling {func.__name__} with args={args}, kwargs={kwargs}")
-        
-        try:
-            result = func(*args, **kwargs)
-            execution_time = time.time() - start_time
-            logger.debug(f"{func.__name__} completed in {execution_time:.2f}s")
-            return result
-            
-        except Exception as e:
-            execution_time = time.time() - start_time
-            logger.error(f"{func.__name__} failed after {execution_time:.2f}s: {str(e)}")
-            raise
-    
-    return wrapper

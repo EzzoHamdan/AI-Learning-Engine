@@ -62,9 +62,6 @@ else:
     st.warning(f"⚠️ AI Provider Issue: {ai_provider}")
     st.info("💡 The app will continue to work. Please configure a working AI provider in the sidebar to generate quizzes.")
 
-def get_model_info(model_name):
-    return model_name
-
 def extract_text_from_pdf(file):
     doc = fitz.open(stream=file.read(), filetype="pdf")
     return "\n".join(page.get_text() for page in doc)
@@ -1366,17 +1363,14 @@ def main():
                     selected_model = st.selectbox(
                         "🤖 Select Model:",
                         model_options,
-                        format_func=lambda x: f"{get_model_info(x)}",
                         index=model_options.index(st.session_state.selected_local_model) if st.session_state.selected_local_model in model_options else 0,
                         key="model_selector",
                         help="Choose which model to use for quiz generation. Larger models are more capable but slower."
                     )
-                    
-                    # Update session state and config if model changed
+
+                    # Update session state if model changed
                     if selected_model != st.session_state.selected_local_model:
                         st.session_state.selected_local_model = selected_model
-                        # Update the local config to use the selected model
-                        local_ai_config.MODEL_NAME = selected_model
                         st.success(f"🔄 Switched to model: {selected_model}")
                         
                         # Show performance hint for selected model
@@ -1392,8 +1386,7 @@ def main():
                         st.rerun()
                     
                     # Show current model info
-                    model_info = get_model_info(st.session_state.selected_local_model)
-                    st.info(f"🎯 **Active Model:** {st.session_state.selected_local_model} {model_info}")
+                    st.info(f"🎯 **Active Model:** {st.session_state.selected_local_model}")
                     
                     # Show all available models in expander
                     with st.expander(f"📦 All Available Models ({len(available_models)})"):
@@ -1401,8 +1394,7 @@ def main():
                             is_current = model == st.session_state.selected_local_model
                             marker = "🔹 **" if is_current else "• "
                             end_marker = "** (Active)" if is_current else ""
-                            model_info = get_model_info(model)
-                            st.write(f"{marker}{model} {model_info}{end_marker}")
+                            st.write(f"{marker}{model}{end_marker}")
                 else:
                     st.warning("No models found. Run `ollama pull gemma2:2b`")
             else:
