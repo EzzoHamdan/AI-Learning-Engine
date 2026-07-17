@@ -218,7 +218,7 @@ Expert-level questions with manipulative elements, edge cases, and sophisticated
 ### Environment Variables (.env file - optional)
 ```env
 # Local AI (automatically detected)
-LOCAL_AI_MODELL=""
+LOCAL_AI_MODEL="gemma2:2b"
 
 # Google AI
 GOOGLE_AI_API_KEY=your_google_ai_key_here

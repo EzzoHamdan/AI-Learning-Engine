@@ -18,6 +18,7 @@ class QuizConfig:
     SUPPORTED_FILE_TYPES: List[str] = None
     MAX_TEXT_LENGTH: int = 10000
     SUMMARY_THRESHOLD: int = 5000  # Increased from 3000 to reduce API calls
+    MAX_UPLOAD_MB: int = 50  # Reject uploads larger than this (matches README)
     
     # Open-ended question configuration
     MIN_OPEN_ENDED_WORDS: int = 10

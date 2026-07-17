@@ -1268,7 +1268,12 @@ def main():
                 if open_count > 0 and st.session_state.ai_provider not in ["Local AI (Ollama)", "Google AI"]:
                     st.warning(f"⚠️ {open_count} open-ended question(s) will use gpt-4o-mini for scoring (higher cost)")
             else:
-                num_questions = st.slider("Number of Questions", min_value=3, max_value=10, value=5)
+                num_questions = st.slider(
+                    "Number of Questions",
+                    min_value=quiz_config.MIN_QUESTIONS,
+                    max_value=quiz_config.MAX_QUESTIONS,
+                    value=quiz_config.DEFAULT_QUESTIONS,
+                )
         
         else:  # Study Materials
             material_type = st.selectbox(
@@ -1405,8 +1410,17 @@ def main():
                 st.code("ollama serve")
 
     if uploaded_file and not (st.session_state.quiz_generated or st.session_state.materials_generated):
+        # Enforce the upload size limit (README advertises it; nothing enforced it)
+        max_upload_bytes = quiz_config.MAX_UPLOAD_MB * 1024 * 1024
+        if uploaded_file.size > max_upload_bytes:
+            st.error(
+                f"❌ File is {uploaded_file.size / (1024 * 1024):.1f}MB, which exceeds "
+                f"the {quiz_config.MAX_UPLOAD_MB}MB limit. Please upload a smaller file."
+            )
+            return
+
         ext = uploaded_file.name.split(".")[-1]
-        
+
         # Create a unique identifier for the uploaded file
         file_id = f"{uploaded_file.name}_{uploaded_file.size}"
         current_file_id = getattr(st.session_state, 'current_file_id', None)
@@ -1461,7 +1475,7 @@ def main():
             st.text_area("Extracted Text", preview_text[:1000] + "..." if len(preview_text) > 1000 else preview_text, height=200)
 
         # Handle summarization logic
-        needs_summarization = len(text) > 3000 and not st.session_state.text_summarized
+        needs_summarization = len(text) > quiz_config.SUMMARY_THRESHOLD and not st.session_state.text_summarized
         
         if needs_summarization and not st.session_state.summarization_in_progress:
             # Start summarization automatically
