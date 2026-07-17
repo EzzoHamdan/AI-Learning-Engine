@@ -3,6 +3,7 @@
 import json
 import re
 from typing import Dict, Any
+import streamlit as st
 from dotenv import load_dotenv
 from config import OpenAIConfig, GoogleAIConfig, LocalAIConfig
 
@@ -110,7 +111,6 @@ Content: {text}
             # Use appropriate model based on provider
             if self.use_local_ai:
                 # Use selected model from session state if available, otherwise fall back to config
-                import streamlit as st
                 model = getattr(st.session_state, 'selected_local_model', self.config.MODEL_NAME)
             elif self.use_google_ai:
                 model = self.config.CHAT_MODEL
@@ -226,7 +226,6 @@ Return your evaluation in this exact JSON format:
             # Use appropriate model based on provider
             if self.use_local_ai:
                 # Use selected model from session state if available, otherwise fall back to config
-                import streamlit as st
                 model = getattr(st.session_state, 'selected_local_model', self.config.MODEL_NAME)
             elif hasattr(self.config, 'SCORING_MODEL'):
                 model = self.config.SCORING_MODEL
