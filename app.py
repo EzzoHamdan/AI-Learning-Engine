@@ -311,6 +311,8 @@ def display_quiz(quiz_data):
         st.session_state.current_question = 0
         st.session_state.user_answers = {}
         st.session_state.quiz_completed = False
+        st.session_state.quiz_finalized = False
+        st.session_state.quiz_results = {}
         st.session_state.quiz_data = quiz_data
     
     # Reset quiz if new quiz is generated
@@ -318,6 +320,8 @@ def display_quiz(quiz_data):
         st.session_state.current_question = 0
         st.session_state.user_answers = {}
         st.session_state.quiz_completed = False
+        st.session_state.quiz_finalized = False
+        st.session_state.quiz_results = {}
         st.session_state.quiz_data = quiz_data
     
     total_questions = len(questions)
@@ -413,34 +417,41 @@ def display_quiz(quiz_data):
     
     else:
         # Display results
+        # Score + record analytics exactly once on entry to the completed
+        # state, then render read-only (BUG-2).
+        if not st.session_state.get("quiz_finalized"):
+            finalize_quiz(questions, st.session_state.user_answers)
+            st.session_state.quiz_finalized = True
         display_results(questions, st.session_state.user_answers)
 
-def display_results(questions, user_answers):
-    """Display quiz results with detailed feedback"""
-    st.success("🎉 Quiz Completed!")
-    
-    # Get difficulty and quiz type from session state
-    difficulty = getattr(st.session_state, 'quiz_difficulty', 'Standard')
-    quiz_type = getattr(st.session_state, 'quiz_type', 'Mixed')
-    
+def finalize_quiz(questions, user_answers):
+    """Score the quiz and record analytics exactly once, on completion.
+
+    Streamlit reruns the whole script on every widget interaction, so scoring
+    (which calls the LLM — real cost and latency) and analytics tracking must
+    run only on the transition into the completed state, never in the render
+    path. Otherwise every rerun re-scores open-ended answers and double-counts
+    the quiz (BUG-2). Results are stored in st.session_state.quiz_results for
+    display_results() to read; the caller guards this with quiz_finalized.
+    """
     # Separate scoring for different question types
     traditional_questions = []
     open_ended_questions = []
-    
+
     for i, question in enumerate(questions):
         if question.get('type') == 'open_ended':
             open_ended_questions.append((i, question))
         else:
             traditional_questions.append((i, question))
-    
+
     # Calculate traditional question scores
     traditional_correct = 0
     total_traditional = len(traditional_questions)
-    
+
     for i, question in traditional_questions:
         user_answer = user_answers.get(i, "")
         correct_answer = question['correct_answer']
-        
+
         # For multiple choice, extract letter from user answer
         if len(question['options']) > 2:
             if user_answer and user_answer[0] in ['A', 'B', 'C', 'D']:
@@ -449,67 +460,50 @@ def display_results(questions, user_answers):
                 user_letter = ""
         else:
             user_letter = user_answer
-        
+
         if user_letter == correct_answer:
             traditional_correct += 1
-    
-    # Score open-ended questions
+
+    # Score open-ended questions with AI (runs exactly once, not on every rerun)
     open_ended_scores = []
     total_open_ended_marks = 0
     earned_open_ended_marks = 0
-    
+
     if open_ended_questions and client_successful:
         st.info("🤖 Scoring open-ended questions with AI... This may take a moment.")
         progress_bar = st.progress(0)
-        
+
         from open_ended_processor import OpenEndedQuestionProcessor
         processor = OpenEndedQuestionProcessor(
-            client, 
+            client,
             use_google_ai=(st.session_state.ai_provider == "Google AI"),
             use_local_ai=(st.session_state.ai_provider == "Local AI (Ollama)")
         )
-        
+
         for idx, (i, question) in enumerate(open_ended_questions):
             user_answer = user_answers.get(i, "")
             scoring_result = processor.score_open_ended_answer(question, user_answer)
             open_ended_scores.append((i, question, scoring_result))
-            
+
             total_open_ended_marks += scoring_result['max_score']
             earned_open_ended_marks += scoring_result['total_score']
-            
+
             progress_bar.progress((idx + 1) / len(open_ended_questions))
-        
+
         progress_bar.empty()
-    
+
     # Calculate overall score
     if total_traditional > 0 and total_open_ended_marks > 0:
-        # Mixed quiz - combine scores proportionally
         traditional_percentage = (traditional_correct / total_traditional) * 100
         open_ended_percentage = (earned_open_ended_marks / total_open_ended_marks) * 100
-        
-        # Weight equally for now (could be customized)
         overall_percentage = (traditional_percentage + open_ended_percentage) / 2
-        
-        st.subheader(f"📊 Overall Score: {overall_percentage:.1f}% {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level")
-        
-        # Show breakdown
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Traditional Questions", f"{traditional_correct}/{total_traditional} ({traditional_percentage:.1f}%)")
-        with col2:
-            st.metric("Open-ended Questions", f"{earned_open_ended_marks:.1f}/{total_open_ended_marks} ({open_ended_percentage:.1f}%)")
-            
     elif total_open_ended_marks > 0:
-        # Only open-ended questions
         overall_percentage = (earned_open_ended_marks / total_open_ended_marks) * 100
-        st.subheader(f"📊 Overall Score: {earned_open_ended_marks:.1f}/{total_open_ended_marks} ({overall_percentage:.1f}%) {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level")
-        
-    else:
-        # Only traditional questions
+    elif total_traditional > 0:
         overall_percentage = (traditional_correct / total_traditional) * 100
-        st.subheader(f"📊 Overall Score: {traditional_correct}/{total_traditional} ({overall_percentage:.1f}%) {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level")
-    
-    # Prepare performance stats for analytics tracking
+    else:
+        overall_percentage = 0
+
     performance_stats = {
         "traditional_correct": traditional_correct,
         "total_traditional": total_traditional,
@@ -518,14 +512,55 @@ def display_results(questions, user_answers):
         "earned_open_ended_marks": earned_open_ended_marks,
         "overall_percentage": overall_percentage
     }
-    
-    # Track quiz completion in analytics
+
+    # Track quiz completion in analytics — exactly once
     analytics.track_quiz_completion(
         quiz_data=st.session_state.quiz_data,
         user_answers=user_answers,
         performance_stats=performance_stats
     )
-    
+
+    st.session_state.quiz_results = performance_stats
+
+
+def display_results(questions, user_answers):
+    """Render quiz results (read-only).
+
+    All scoring and analytics tracking happen once in finalize_quiz(); this
+    function only reads st.session_state.quiz_results and renders it, so reruns
+    triggered by widget interaction never re-score or double-count (BUG-2).
+    """
+    st.success("🎉 Quiz Completed!")
+
+    difficulty = getattr(st.session_state, 'quiz_difficulty', 'Standard')
+
+    results = st.session_state.get('quiz_results', {})
+    traditional_correct = results.get('traditional_correct', 0)
+    total_traditional = results.get('total_traditional', 0)
+    open_ended_scores = results.get('open_ended_scores', [])
+    total_open_ended_marks = results.get('total_open_ended_marks', 0)
+    earned_open_ended_marks = results.get('earned_open_ended_marks', 0)
+    overall_percentage = results.get('overall_percentage', 0)
+
+    # Overall score display
+    if total_traditional > 0 and total_open_ended_marks > 0:
+        traditional_percentage = (traditional_correct / total_traditional) * 100
+        open_ended_percentage = (earned_open_ended_marks / total_open_ended_marks) * 100
+
+        st.subheader(f"📊 Overall Score: {overall_percentage:.1f}% {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Traditional Questions", f"{traditional_correct}/{total_traditional} ({traditional_percentage:.1f}%)")
+        with col2:
+            st.metric("Open-ended Questions", f"{earned_open_ended_marks:.1f}/{total_open_ended_marks} ({open_ended_percentage:.1f}%)")
+
+    elif total_open_ended_marks > 0:
+        st.subheader(f"📊 Overall Score: {earned_open_ended_marks:.1f}/{total_open_ended_marks} ({overall_percentage:.1f}%) {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level")
+
+    else:
+        st.subheader(f"📊 Overall Score: {traditional_correct}/{total_traditional} ({overall_percentage:.1f}%) {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level")
+
     # Score interpretation
     scoring_config = SCORING_CONFIG.get(difficulty, SCORING_CONFIG['Standard'])
     
@@ -629,6 +664,8 @@ def display_results(questions, user_answers):
         st.session_state.current_question = 0
         st.session_state.user_answers = {}
         st.session_state.quiz_completed = False
+        st.session_state.quiz_finalized = False
+        st.session_state.quiz_results = {}
         st.rerun()
 
 def display_study_materials(materials_data, material_type):
@@ -1491,6 +1528,8 @@ def main():
                 st.session_state.current_question = 0
                 st.session_state.user_answers = {}
                 st.session_state.quiz_completed = False
+                st.session_state.quiz_finalized = False
+                st.session_state.quiz_results = {}
                 # Keep the summarized text to avoid re-summarization
                 st.rerun()
     
