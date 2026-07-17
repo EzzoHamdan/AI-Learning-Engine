@@ -1257,7 +1257,7 @@ def main():
             if quiz_type == "Open-ended Questions":
                 num_questions = st.slider("Number of Questions", min_value=2, max_value=5, value=3)
                 if st.session_state.ai_provider not in ["Local AI (Ollama)", "Google AI"]:
-                    st.warning("💡 Open-ended questions use GPT-4 for scoring and may increase API costs. Each answer requires an additional AI evaluation.")
+                    st.warning("💡 Open-ended questions use gpt-4o-mini for scoring and may increase API costs. Each answer requires an additional AI evaluation.")
             elif quiz_type == "Complete Mix (All Types)":
                 st.write("**Question Distribution:**")
                 mcq_count = st.slider("Multiple Choice", min_value=1, max_value=5, value=2)
@@ -1266,7 +1266,7 @@ def main():
                 num_questions = mcq_count + tf_count + open_count
                 st.info(f"Total questions: {num_questions}")
                 if open_count > 0 and st.session_state.ai_provider not in ["Local AI (Ollama)", "Google AI"]:
-                    st.warning(f"⚠️ {open_count} open-ended question(s) will use GPT-4 for scoring (higher cost)")
+                    st.warning(f"⚠️ {open_count} open-ended question(s) will use gpt-4o-mini for scoring (higher cost)")
             else:
                 num_questions = st.slider("Number of Questions", min_value=3, max_value=10, value=5)
         

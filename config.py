@@ -58,8 +58,8 @@ class OpenAIConfig:
 @dataclass
 class GoogleAIConfig:
     """Google AI (Gemini) API configuration."""
-    CHAT_MODEL: str = "gemini-1.5-flash"  # Free tier available
-    SCORING_MODEL: str = "gemini-1.5-flash"  # Same model for consistency
+    CHAT_MODEL: str = "gemini-2.5-flash"  # Free tier available (1.5-flash retired Sep 2025)
+    SCORING_MODEL: str = "gemini-2.5-flash"  # Same model for consistency
     TEMPERATURE: float = 0.7
     SUMMARY_TEMPERATURE: float = 0.5
     MAX_TOKENS: int = 2000

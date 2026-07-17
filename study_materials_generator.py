@@ -19,6 +19,7 @@ import logging
 from typing import Dict, Any, Tuple
 import streamlit as st
 from datetime import datetime
+from config import GoogleAIConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ class StudyMaterialsGenerator:
             model = getattr(st.session_state, 'selected_local_model', 'gemma2:2b')
             temperature = 0.3  # Lower temperature for more consistent study materials
         elif self.use_google_ai:
-            model = "gemini-2.0-flash-exp"
+            model = GoogleAIConfig().CHAT_MODEL
             temperature = 0.3
         else:
             model = "gpt-3.5-turbo"
