@@ -166,11 +166,7 @@ logs/
 *.tmp
 *.temp
 
-# Demo and test files
-demo_*.py
-test_*.py
-*_demo.py
-*_test.py
+# Scratch notes
 IMPLEMENTATION_SUMMARY.md
 
 # Application specific
