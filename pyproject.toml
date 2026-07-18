@@ -17,8 +17,6 @@ dependencies = [
     "python-pptx>=1.0",
     "pydantic>=2.8",
     "pydantic-settings>=2.4",
-    # Removed in Phase 3 once the single OpenAI-compatible client lands.
-    "google-genai>=1.0",
 ]
 
 [dependency-groups]
