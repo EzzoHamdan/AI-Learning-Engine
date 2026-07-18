@@ -55,11 +55,11 @@ def check_python_version() -> bool:
         return False
 
 def install_dependencies() -> bool:
-    """Install required Python packages."""
-    print_info("Installing required packages...")
+    """Install the project and its dependencies (editable install)."""
+    print_info("Installing the app and its dependencies...")
     try:
-        subprocess.run([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"], 
-                      check=True, capture_output=True)
+        subprocess.run([sys.executable, "-m", "pip", "install", "-e", "."],
+                       check=True, capture_output=True)
         print_success("All packages installed successfully!")
         return True
     except subprocess.CalledProcessError as e:
@@ -274,4 +274,4 @@ if __name__ == "__main__":
         print_info("\n\nSetup cancelled by user.")
     except Exception as e:
         print_error(f"Setup failed with error: {e}")
-        print_info("You can still set up manually by copying .env.template to .env")
+        print_info("You can still set up manually by copying .env.example to .env")

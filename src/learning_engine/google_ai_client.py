@@ -2,7 +2,7 @@
 
 from typing import Dict, List
 from google import genai
-from config import GoogleAIConfig
+from learning_engine.settings import GoogleAIConfig
 
 class GoogleAIClient:
     """Wrapper for Google AI (Gemma 3) API to maintain compatibility with OpenAI interface."""

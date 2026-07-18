@@ -5,7 +5,7 @@ import re
 from typing import Dict, Any
 import streamlit as st
 from dotenv import load_dotenv
-from config import OpenAIConfig, GoogleAIConfig, LocalAIConfig
+from learning_engine.settings import OpenAIConfig, GoogleAIConfig, LocalAIConfig
 
 # Load environment variables
 load_dotenv()

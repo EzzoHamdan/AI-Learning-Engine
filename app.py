@@ -8,26 +8,17 @@ import time
 from datetime import datetime
 from dotenv import load_dotenv
 
-# Auto-configuration for easy setup
-try:
-    from auto_config import ensure_env_file_exists, get_setup_status
-    ensure_env_file_exists()  # Create .env if missing
-    ready, status_message, available_providers = get_setup_status()
-except ImportError:
-    # Fallback if auto_config is not available
-    ready, status_message, available_providers = True, "Manual configuration", []
-
 # Load environment variables from .env file
 load_dotenv()
 
 # Import custom modules
-from config import AppConfig, QuizConfig, OpenAIConfig, GoogleAIConfig, LocalAIConfig, DIFFICULTY_CONFIG, SCORING_CONFIG
-from logger import setup_logging
-from session_manager import SessionManager
-from ai_client_factory import AIClientFactory
-from local_ai_client import is_ollama_running, list_available_models
-from study_materials_generator import StudyMaterialsGenerator
-from learning_analytics import LearningAnalytics, analytics
+from learning_engine.settings import AppConfig, QuizConfig, OpenAIConfig, GoogleAIConfig, LocalAIConfig, DIFFICULTY_CONFIG, SCORING_CONFIG
+from learning_engine.logger import setup_logging
+from learning_engine.session_manager import SessionManager
+from learning_engine.ai_client_factory import AIClientFactory
+from learning_engine.local_ai_client import is_ollama_running, list_available_models
+from learning_engine.study_materials_generator import StudyMaterialsGenerator
+from learning_engine.learning_analytics import LearningAnalytics, analytics
 
 # Setup logging
 logger = setup_logging()
@@ -470,7 +461,7 @@ def finalize_quiz(questions, user_answers):
         st.info("🤖 Scoring open-ended questions with AI... This may take a moment.")
         progress_bar = st.progress(0)
 
-        from open_ended_processor import OpenEndedQuestionProcessor
+        from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
         processor = OpenEndedQuestionProcessor(
             client,
             use_google_ai=(st.session_state.ai_provider == "Google AI"),
@@ -1056,7 +1047,7 @@ def generate_quiz_content(final_text, quiz_type, num_questions, difficulty, mcq_
         try:
             # Handle different quiz types
             if quiz_type == "Open-ended Questions":
-                from open_ended_processor import OpenEndedQuestionProcessor
+                from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
                 processor = OpenEndedQuestionProcessor(
                     client, 
                     use_google_ai=(st.session_state.ai_provider == "Google AI"),
@@ -1064,7 +1055,7 @@ def generate_quiz_content(final_text, quiz_type, num_questions, difficulty, mcq_
                 )
                 quiz_data = processor.generate_open_ended_questions(final_text, num_questions, difficulty)
             elif quiz_type == "Complete Mix (All Types)":
-                from open_ended_processor import OpenEndedQuestionProcessor
+                from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
                 processor = OpenEndedQuestionProcessor(
                     client, 
                     use_google_ai=(st.session_state.ai_provider == "Google AI"),

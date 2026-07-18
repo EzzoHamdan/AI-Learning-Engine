@@ -19,7 +19,7 @@ import logging
 from typing import Dict, Any, Tuple
 import streamlit as st
 from datetime import datetime
-from config import GoogleAIConfig
+from learning_engine.settings import GoogleAIConfig
 
 logger = logging.getLogger(__name__)
 

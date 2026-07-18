@@ -39,7 +39,7 @@ class SessionManager:
         # Local AI model selection
         if "selected_local_model" not in st.session_state:
             # Initialize with default model from config
-            from config import LocalAIConfig
+            from learning_engine.settings import LocalAIConfig
             st.session_state.selected_local_model = LocalAIConfig().MODEL_NAME
 
         # API Keys
@@ -123,7 +123,7 @@ class SessionManager:
     def _check_ollama_availability(self) -> tuple[bool, str]:
         """Check if Ollama server is running."""
         try:
-            from local_ai_client import is_ollama_running, list_available_models
+            from learning_engine.local_ai_client import is_ollama_running, list_available_models
 
             if is_ollama_running("http://127.0.0.1:11434"):
                 models = list_available_models("http://127.0.0.1:11434")

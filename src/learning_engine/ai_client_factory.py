@@ -7,10 +7,10 @@ import logging
 from typing import Tuple, Any
 from openai import OpenAI
 
-from google_ai_client import GoogleAIClient, ChatCompletions
-from local_ai_client import create_local_client, is_ollama_running, list_available_models
-from session_manager import SessionManager
-from config import LocalAIConfig, GoogleAIConfig
+from learning_engine.google_ai_client import GoogleAIClient, ChatCompletions
+from learning_engine.local_ai_client import create_local_client, is_ollama_running, list_available_models
+from learning_engine.session_manager import SessionManager
+from learning_engine.settings import LocalAIConfig, GoogleAIConfig
 
 logger = logging.getLogger(__name__)
 
