@@ -13,6 +13,7 @@ load_dotenv()
 # Import custom modules
 from learning_engine.ai_client_factory import get_client, resolve_provider
 from learning_engine.learning_analytics import analytics
+from learning_engine.generation import materials as materials_gen
 from learning_engine.generation import quiz as quiz_gen
 from learning_engine.llm.client import GenerationFailed, ProviderUnavailable
 from learning_engine.llm.providers import list_ollama_models
@@ -25,7 +26,6 @@ from learning_engine.settings import (
     LocalAIConfig,
     QuizConfig,
 )
-from learning_engine.study_materials_generator import StudyMaterialsGenerator
 
 # Temperatures kept per call type (Phase 7 moves these into settings).
 QUIZ_TEMPERATURE = 0.7
@@ -394,14 +394,8 @@ def display_results(questions, user_answers):
 
 
 def display_study_materials(materials_data, material_type):
-    """Display generated study materials with appropriate formatting."""
-
-    if "error" in materials_data:
-        st.error(f"❌ Failed to generate {material_type.lower()}: {materials_data['error']}")
-        return
-
+    """Dispatch to the right renderer for a generated study-material model."""
     st.success(f"✅ {material_type} generated successfully!")
-
     if material_type == "Complete Study Guide":
         display_complete_study_guide(materials_data)
     elif material_type == "Summary Only":
@@ -416,159 +410,108 @@ def display_study_materials(materials_data, material_type):
         display_key_terms(materials_data)
 
 
-def display_complete_study_guide(guide_data):
-    """Display a complete study guide with all components."""
-
-    st.subheader(f"📚 {guide_data.get('title', 'Study Guide')}")
+def display_complete_study_guide(guide):
+    """Display a complete study guide (StudyGuide model)."""
+    st.subheader(f"📚 {guide.title}")
     st.caption(
-        f"Generated: {guide_data.get('generated_at', 'Unknown time')} | Type: {guide_data.get('guide_type', 'Unknown').title()}"
+        f"Generated: {guide.generated_at or 'Unknown time'} | Type: {guide.guide_type.title()}"
     )
 
-    # Show study plan first
-    if "study_plan" in guide_data:
-        with st.expander("🗓️ Suggested Study Plan", expanded=True):
-            plan = guide_data["study_plan"]
-            st.info(f"**Total Study Time:** {plan.get('total_time', 'Variable')}")
+    with st.expander("🗓️ Suggested Study Plan", expanded=True):
+        st.info(f"**Total Study Time:** {guide.study_plan.total_time}")
+        for session in guide.study_plan.sessions:
+            st.write(f"**Session {session.session}** ({session.time}): {session.focus}")
 
-            for session in plan.get("sessions", []):
-                st.write(
-                    f"**Session {session['session']}** ({session['time']}): {session['focus']}"
-                )
-
-    # Display each component
-    components = guide_data.get("components", {})
-
-    # Summary
-    if "summary" in components and components["summary"]:
+    components = guide.components
+    if components.summary:
         with st.expander("📖 Summary", expanded=True):
-            display_summary(components["summary"])
+            display_summary(components.summary)
+    if components.key_terms:
+        with st.expander("📚 Key Terms & Definitions"):
+            display_key_terms(components.key_terms)
+    if components.cheat_sheet:
+        with st.expander("📄 Quick Reference Cheat Sheet"):
+            display_cheat_sheet(components.cheat_sheet)
+    if components.flashcards:
+        with st.expander("🔄 Interactive Flashcards"):
+            display_flashcards(components.flashcards)
 
-    # Key Terms
-    if "key_terms" in components and components["key_terms"]:
-        with st.expander("📚 Key Terms & Definitions", expanded=False):
-            display_key_terms(components["key_terms"])
-
-    # Cheat Sheet
-    if "cheat_sheet" in components and components["cheat_sheet"]:
-        with st.expander("📄 Quick Reference Cheat Sheet", expanded=False):
-            display_cheat_sheet(components["cheat_sheet"])
-
-    # Flashcards
-    if "flashcards" in components and components["flashcards"]:
-        with st.expander("🔄 Interactive Flashcards", expanded=False):
-            display_flashcards(components["flashcards"])
-
-    # Show any errors
-    if guide_data.get("errors"):
+    if guide.errors:
         with st.expander("⚠️ Generation Notes"):
-            for error in guide_data["errors"]:
+            for error in guide.errors:
                 st.warning(error)
 
 
-def display_summary(summary_data):
-    """Display a summary with key points and topics."""
+def display_summary(summary):
+    """Display a Summary model."""
+    st.write(summary.summary or "No summary available")
 
-    if "error" in summary_data:
-        st.error(f"❌ {summary_data['error']}")
-        return
-
-    # Main summary
-    summary_text = summary_data.get("summary", "No summary available")
-    st.write(summary_text)
-
-    # Metadata
     col1, col2 = st.columns(2)
     with col1:
-        if "word_count" in summary_data:
-            st.metric("Word Count", summary_data["word_count"])
+        st.metric("Word Count", summary.word_count)
     with col2:
-        if "summary_type" in summary_data:
-            st.metric("Type", summary_data["summary_type"].title())
+        if summary.summary_type:
+            st.metric("Type", summary.summary_type.title())
 
-    # Key points
-    key_points = summary_data.get("key_points", [])
-    if key_points:
+    if summary.key_points:
         st.subheader("🎯 Key Points")
-        for point in key_points:
+        for point in summary.key_points:
             st.write(f"• {point}")
 
-    # Main topics
-    main_topics = summary_data.get("main_topics", [])
-    if main_topics:
+    if summary.main_topics:
         st.subheader("📋 Main Topics")
         topic_cols = st.columns(3)
-        for i, topic in enumerate(main_topics):
+        for i, topic in enumerate(summary.main_topics):
             with topic_cols[i % 3]:
                 st.write(f"📌 {topic}")
 
 
-def display_cheat_sheet(cheat_data):
-    """Display a formatted cheat sheet."""
+def display_cheat_sheet(cheat):
+    """Display a CheatSheet model."""
+    st.subheader(f"📋 {cheat.title}")
 
-    if "error" in cheat_data:
-        st.error(f"❌ {cheat_data['error']}")
-        return
+    for section in cheat.sections:
+        st.subheader(f"📌 {section.heading or 'Section'}")
+        if section.content:
+            st.write(section.content)
+        for item in section.items:
+            st.write(f"• {item}")
 
-    st.subheader(f"📋 {cheat_data.get('title', 'Cheat Sheet')}")
-
-    # Sections
-    sections = cheat_data.get("sections", [])
-    for section in sections:
-        st.subheader(f"📌 {section.get('heading', 'Section')}")
-        st.write(section.get("content", ""))
-
-        items = section.get("items", [])
-        if items:
-            for item in items:
-                st.write(f"• {item}")
-
-    # Key terms in a nice layout
-    key_terms = cheat_data.get("key_terms", [])
-    if key_terms:
+    if cheat.key_terms:
         st.subheader("📚 Key Terms")
-        for term_data in key_terms:
-            with st.container():
-                st.write(
-                    f"**{term_data.get('term', 'Term')}**: {term_data.get('definition', 'Definition')}"
-                )
+        for term in cheat.key_terms:
+            st.write(f"**{term.term}**: {term.definition}")
 
-    # Formulas
-    formulas = cheat_data.get("formulas", [])
-    if formulas:
+    if cheat.formulas:
         st.subheader("🔢 Formulas")
-        for formula in formulas:
-            st.write(f"**{formula.get('name', 'Formula')}**: `{formula.get('formula', 'N/A')}`")
-            if formula.get("explanation"):
-                st.caption(formula["explanation"])
+        for formula in cheat.formulas:
+            st.write(f"**{formula.name}**: `{formula.formula}`")
+            if formula.explanation:
+                st.caption(formula.explanation)
 
-    # Quick tips
-    tips = cheat_data.get("quick_tips", [])
-    if tips:
+    if cheat.quick_tips:
         st.subheader("💡 Quick Tips")
-        for tip in tips:
+        for tip in cheat.quick_tips:
             st.info(tip)
 
 
-def display_flashcards(flashcard_data):
-    """Display interactive flashcards."""
-
-    if "error" in flashcard_data:
-        st.error(f"❌ {flashcard_data['error']}")
-        return
-
-    flashcards = flashcard_data.get("flashcards", [])
+def display_flashcards(deck):
+    """Display interactive flashcards (FlashcardDeck model)."""
+    flashcards = deck.flashcards
     if not flashcards:
         st.warning("No flashcards generated.")
         return
 
-    # Initialize flashcard session state
     if "current_flashcard" not in st.session_state:
         st.session_state.current_flashcard = 0
         st.session_state.flashcard_answer_visible = False
         st.session_state.flashcard_stats = {"correct": 0, "incorrect": 0, "skipped": 0}
 
-    current_card = flashcards[st.session_state.current_flashcard]
     total_cards = len(flashcards)
+    # Guard against an index left over from a previously longer deck.
+    if st.session_state.current_flashcard >= total_cards:
+        st.session_state.current_flashcard = 0
+    current_card = flashcards[st.session_state.current_flashcard]
 
     # Progress and stats
     col1, col2, col3 = st.columns(3)
@@ -577,32 +520,24 @@ def display_flashcards(flashcard_data):
     with col2:
         st.metric("Correct", st.session_state.flashcard_stats["correct"])
     with col3:
-        st.metric("Difficulty", current_card.get("difficulty", "unknown").title())
+        st.metric("Difficulty", current_card.difficulty.title())
 
-    # Card display
     with st.container():
         st.subheader(f"🔄 Card {st.session_state.current_flashcard + 1}")
-
-        # Show category and difficulty
-        category = current_card.get("category", "General")
-        difficulty = current_card.get("difficulty", "unknown")
-        st.caption(f"Category: {category} | Difficulty: {difficulty.title()}")
-
-        # Front of card
+        st.caption(
+            f"Category: {current_card.category} | Difficulty: {current_card.difficulty.title()}"
+        )
         st.markdown("### 📝 Question:")
-        st.write(current_card.get("front", "No question available"))
+        st.write(current_card.front or "No question available")
 
-        # Hint if available
-        if current_card.get("hint") and not st.session_state.flashcard_answer_visible:
+        if current_card.hint and not st.session_state.flashcard_answer_visible:
             with st.expander("💡 Hint"):
-                st.write(current_card["hint"])
+                st.write(current_card.hint)
 
-        # Answer section
         if st.session_state.flashcard_answer_visible:
             st.markdown("### ✅ Answer:")
-            st.success(current_card.get("back", "No answer available"))
+            st.success(current_card.back or "No answer available")
 
-            # Self-assessment buttons
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 if st.button("😊 Got it right!", key="correct"):
@@ -640,8 +575,7 @@ def display_flashcards(flashcard_data):
         if st.button("🔄 Shuffle Cards"):
             import random
 
-            random.shuffle(flashcards)
-            flashcard_data["flashcards"] = flashcards
+            random.shuffle(deck.flashcards)
             st.session_state.current_flashcard = 0
             st.session_state.flashcard_answer_visible = False
             st.success("Cards shuffled!")
@@ -652,11 +586,9 @@ def display_flashcards(flashcard_data):
             st.session_state.flashcard_answer_visible = False
             st.rerun()
 
-    # Study tips
-    study_tips = flashcard_data.get("study_tips", [])
-    if study_tips:
+    if deck.study_tips:
         with st.expander("💡 Study Tips"):
-            for tip in study_tips:
+            for tip in deck.study_tips:
                 st.write(f"• {tip}")
 
 
@@ -675,128 +607,77 @@ def next_card(total_cards):
     st.rerun()
 
 
-def display_outline(outline_data):
-    """Display a structured study outline."""
-
-    if "error" in outline_data:
-        st.error(f"❌ {outline_data['error']}")
-        return
-
-    # Metadata
+def display_outline(outline):
+    """Display a structured study outline (Outline model)."""
     col1, col2, col3 = st.columns(3)
     with col1:
-        total_sections = outline_data.get("total_sections", 0)
-        st.metric("Sections", total_sections)
+        st.metric("Sections", outline.total_sections)
     with col2:
-        max_depth = outline_data.get("max_depth", 0)
-        st.metric("Max Depth", max_depth)
+        st.metric("Max Depth", outline.max_depth)
     with col3:
-        total_time = outline_data.get("time_estimates", {}).get("total_study_time", "Unknown")
-        st.metric("Study Time", total_time)
+        st.metric("Study Time", outline.time_estimates.total_study_time)
 
-    # Outline structure
-    outline = outline_data.get("outline", [])
-    render_outline_recursive(outline, 0)
+    render_outline_recursive(outline.outline, 0)
 
-    # Study sequence
-    sequence = outline_data.get("study_sequence", [])
-    if sequence:
+    if outline.study_sequence:
         st.subheader("📅 Recommended Study Sequence")
-        for i, section in enumerate(sequence, 1):
-            time_estimate = outline_data.get("time_estimates", {}).get(
-                "per_section", ["30 min"] * len(sequence)
-            )
-            time_for_section = time_estimate[i - 1] if i - 1 < len(time_estimate) else "30 min"
+        per_section = outline.time_estimates.per_section
+        for i, section in enumerate(outline.study_sequence, 1):
+            time_for_section = per_section[i - 1] if i - 1 < len(per_section) else "30 min"
             st.write(f"{i}. **{section}** ({time_for_section})")
 
 
 def render_outline_recursive(outline_items, depth):
-    """Recursively render outline structure."""
+    """Recursively render OutlineItem models."""
     for item in outline_items:
-        level = item.get("level", 1)
-        marker = item.get("marker", "")
-        text = item.get("text", "")
-
-        # Indent based on level
-        indent = "  " * (level - 1)
-        if level == 1:
-            st.subheader(f"{marker}. {text}")
-        elif level == 2:
-            st.write(f"**{indent}{marker}. {text}**")
+        indent = "  " * (item.level - 1)
+        if item.level == 1:
+            st.subheader(f"{item.marker}. {item.text}")
+        elif item.level == 2:
+            st.write(f"**{indent}{item.marker}. {item.text}**")
         else:
-            st.write(f"{indent}{marker}. {text}")
-
-        # Recursively render children
-        children = item.get("children", [])
-        if children:
-            render_outline_recursive(children, depth + 1)
+            st.write(f"{indent}{item.marker}. {item.text}")
+        if item.children:
+            render_outline_recursive(item.children, depth + 1)
 
 
-def display_key_terms(terms_data):
-    """Display key terms and definitions."""
+def display_key_terms(terms):
+    """Display key terms and definitions (KeyTerms model)."""
+    st.metric("Total Terms", terms.total_terms or len(terms.key_terms))
 
-    if "error" in terms_data:
-        st.error(f"❌ {terms_data['error']}")
-        return
-
-    # Metadata
-    total_terms = terms_data.get("total_terms", 0)
-    st.metric("Total Terms", total_terms)
-
-    # Categories
-    categories = terms_data.get("categories", [])
-    if categories:
+    if terms.categories:
         st.subheader("📂 Categories")
-        for category in categories:
-            st.write(
-                f"**{category.get('category', 'Category')}**: {len(category.get('terms', []))} terms"
-            )
+        for category in terms.categories:
+            st.write(f"**{category.category}**: {len(category.terms)} terms")
 
-    # Terms list
-    key_terms = terms_data.get("key_terms", [])
-    if key_terms:
+    if terms.key_terms:
         st.subheader("📚 Terms & Definitions")
+        priorities = (
+            ("high", "### 🔴 High Priority Terms"),
+            ("medium", "### 🟡 Medium Priority Terms"),
+            ("low", "### 🟢 Low Priority Terms"),
+        )
+        for importance, header in priorities:
+            group = [t for t in terms.key_terms if t.importance == importance]
+            if group:
+                st.markdown(header)
+                for term in group:
+                    display_term(term)
 
-        # Group by importance
-        high_importance = [term for term in key_terms if term.get("importance") == "high"]
-        medium_importance = [term for term in key_terms if term.get("importance") == "medium"]
-        low_importance = [term for term in key_terms if term.get("importance") == "low"]
-
-        if high_importance:
-            st.markdown("### 🔴 High Priority Terms")
-            for term in high_importance:
-                display_term(term)
-
-        if medium_importance:
-            st.markdown("### 🟡 Medium Priority Terms")
-            for term in medium_importance:
-                display_term(term)
-
-        if low_importance:
-            st.markdown("### 🟢 Low Priority Terms")
-            for term in low_importance:
-                display_term(term)
-
-    # Study suggestions
-    suggestions = terms_data.get("study_suggestions", [])
-    if suggestions:
+    if terms.study_suggestions:
         st.subheader("💡 Study Suggestions")
-        for suggestion in suggestions:
+        for suggestion in terms.study_suggestions:
             st.info(suggestion)
 
 
 def display_term(term):
-    """Display a single term with its definition and context."""
-    with st.expander(f"📖 {term.get('term', 'Term')}"):
-        st.write(f"**Definition**: {term.get('definition', 'No definition available')}")
-
-        context = term.get("context", "")
-        if context:
-            st.write(f"**Context**: {context}")
-
-        related_terms = term.get("related_terms", [])
-        if related_terms:
-            st.write(f"**Related Terms**: {', '.join(related_terms)}")
+    """Display a single KeyTerm model with its definition and context."""
+    with st.expander(f"📖 {term.term or 'Term'}"):
+        st.write(f"**Definition**: {term.definition or 'No definition available'}")
+        if term.context:
+            st.write(f"**Context**: {term.context}")
+        if term.related_terms:
+            st.write(f"**Related Terms**: {', '.join(term.related_terms)}")
 
 
 def generate_quiz_content(
@@ -840,68 +721,69 @@ def generate_quiz_content(
 
 
 def generate_study_materials_content(final_text, material_type, local_vars):
-    """Generate study materials content with error handling."""
+    """Generate a study-material model and store it in session state."""
     generation_start_time = time.time()
 
     with st.spinner(f"📚 Generating {material_type.lower()} using {ai_provider}..."):
         try:
-            # Initialize study materials generator
-            materials_generator = StudyMaterialsGenerator(client, provider_cfg)
-
-            # Generate based on material type
             if material_type == "Complete Study Guide":
-                guide_type = local_vars.get("guide_type", "comprehensive")
-                materials_data = materials_generator.generate_study_guide(final_text, guide_type)
+                materials_data = materials_gen.generate_study_guide(
+                    client,
+                    provider_cfg,
+                    final_text,
+                    local_vars.get("guide_type", "comprehensive"),
+                    generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                )
             elif material_type == "Summary Only":
-                summary_type = local_vars.get("summary_type", "detailed")
-                materials_data = materials_generator.generate_comprehensive_summary(
-                    final_text, summary_type
+                materials_data = materials_gen.generate_summary(
+                    client, provider_cfg, final_text, local_vars.get("summary_type", "detailed")
                 )
             elif material_type == "Cheat Sheet":
-                cheat_format = local_vars.get("cheat_format", "comprehensive")
-                materials_data = materials_generator.generate_cheat_sheet(final_text, cheat_format)
+                materials_data = materials_gen.generate_cheat_sheet(
+                    client, provider_cfg, final_text, local_vars.get("cheat_format", "comprehensive")
+                )
             elif material_type == "Flashcards":
-                card_count = local_vars.get("card_count", 15)
-                flashcard_difficulty = local_vars.get("flashcard_difficulty", "mixed")
-                materials_data = materials_generator.generate_flashcards(
-                    final_text, card_count, flashcard_difficulty
+                materials_data = materials_gen.generate_flashcards(
+                    client,
+                    provider_cfg,
+                    final_text,
+                    local_vars.get("card_count", 15),
+                    local_vars.get("flashcard_difficulty", "mixed"),
                 )
             elif material_type == "Study Outline":
-                outline_depth = local_vars.get("outline_depth", "detailed")
-                materials_data = materials_generator.generate_study_outline(
-                    final_text, outline_depth
+                materials_data = materials_gen.generate_outline(
+                    client, provider_cfg, final_text, local_vars.get("outline_depth", "detailed")
                 )
             elif material_type == "Key Terms":
-                term_count = local_vars.get("term_count", 15)
-                materials_data = materials_generator.generate_key_terms(final_text, term_count)
+                materials_data = materials_gen.generate_key_terms(
+                    client, provider_cfg, final_text, local_vars.get("term_count", 15)
+                )
             else:
-                materials_data = {"error": f"Unknown material type: {material_type}"}
+                st.error(f"❌ Unknown material type: {material_type}")
+                return
 
             generation_time = time.time() - generation_start_time
-            success = "error" not in materials_data
-
-            # Track materials generation
-            analytics.track_materials_generation(material_type, generation_time, success)
+            analytics.track_materials_generation(material_type, generation_time, True)
             analytics.track_feature_usage("study_materials")
             analytics.track_ai_provider_usage(st.session_state.ai_provider)
 
-            if success:
-                st.session_state.materials_generated = True
-                st.session_state.materials_data = materials_data
-                st.session_state.material_type = material_type
-                st.success(f"✅ {material_type} generated successfully!")
-                st.rerun()
-            else:
-                st.error(
-                    f"❌ Failed to generate {material_type.lower()}: {materials_data.get('error', 'Unknown error')}"
-                )
+            st.session_state.materials_generated = True
+            st.session_state.materials_data = materials_data
+            st.session_state.material_type = material_type
+            st.success(f"✅ {material_type} generated successfully!")
+            st.rerun()
 
+        except GenerationFailed as e:
+            analytics.track_materials_generation(
+                material_type, time.time() - generation_start_time, False
+            )
+            st.error(f"❌ Could not generate valid {material_type.lower()}: {e}")
+            st.info("Try again, or switch to a more capable model/provider in the sidebar.")
         except Exception as e:
-            generation_time = time.time() - generation_start_time
-            analytics.track_materials_generation(material_type, generation_time, False)
-
+            analytics.track_materials_generation(
+                material_type, time.time() - generation_start_time, False
+            )
             st.error(f"❌ Error during {material_type.lower()} generation: {str(e)}")
-            # Add debug information
             st.write("**Debug Info:**")
             st.write(f"- AI Provider: {ai_provider}")
             st.write(f"- Material Type: {material_type}")
