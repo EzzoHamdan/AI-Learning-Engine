@@ -19,43 +19,31 @@ import re
 from datetime import datetime
 from typing import Any
 
-import streamlit as st
-
-from learning_engine.settings import GoogleAIConfig
+from learning_engine.llm.providers import ProviderConfig
 
 logger = logging.getLogger(__name__)
+
+# Lower temperature for more consistent study materials (Phase 7 -> settings).
+GENERATION_TEMPERATURE = 0.3
 
 
 class StudyMaterialsGenerator:
     """Generates various study materials from document content."""
 
-    def __init__(self, client, use_google_ai=False, use_local_ai=False):
+    def __init__(self, client, cfg: ProviderConfig):
         """
         Initialize the study materials generator.
 
         Args:
             client: AI client (OpenAI-compatible interface)
-            use_google_ai: Whether using Google AI provider
-            use_local_ai: Whether using Local AI provider
+            cfg: Resolved provider configuration (models to use)
         """
         self.client = client
-        self.use_google_ai = use_google_ai
-        self.use_local_ai = use_local_ai
+        self.cfg = cfg
 
     def _get_model_config(self) -> tuple[str, float]:
-        """Get appropriate model and temperature based on provider."""
-        if self.use_local_ai:
-            # Use selected model from session state if available
-            model = getattr(st.session_state, "selected_local_model", "gemma2:2b")
-            temperature = 0.3  # Lower temperature for more consistent study materials
-        elif self.use_google_ai:
-            model = GoogleAIConfig().CHAT_MODEL
-            temperature = 0.3
-        else:
-            model = "gpt-3.5-turbo"
-            temperature = 0.3
-
-        return model, temperature
+        """Return the chat model and temperature for study-material generation."""
+        return self.cfg.chat_model, GENERATION_TEMPERATURE
 
     def _make_api_call(self, prompt: str) -> str:
         """Make API call with error handling."""

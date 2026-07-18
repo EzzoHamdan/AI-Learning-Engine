@@ -7,27 +7,24 @@ from typing import Any
 import streamlit as st
 from dotenv import load_dotenv
 
-from learning_engine.settings import GoogleAIConfig, LocalAIConfig, OpenAIConfig
+from learning_engine.llm.providers import ProviderConfig
 
 # Load environment variables
 load_dotenv()
+
+# Temperatures/limits kept per call type (Phase 7 moves these into settings).
+GENERATION_TEMPERATURE = 0.7
+GENERATION_MAX_TOKENS = 2000
+SCORING_TEMPERATURE = 0.3
+SCORING_MAX_TOKENS = 500
 
 
 class OpenEndedQuestionProcessor:
     """Handles generation and scoring of open-ended questions."""
 
-    def __init__(self, ai_client, use_google_ai=False, use_local_ai=False):
+    def __init__(self, ai_client, cfg: ProviderConfig):
         self.client = ai_client
-        self.use_google_ai = use_google_ai
-        self.use_local_ai = use_local_ai
-
-        # Load appropriate config based on provider
-        if self.use_local_ai:
-            self.config = LocalAIConfig()
-        elif self.use_google_ai:
-            self.config = GoogleAIConfig()
-        else:
-            self.config = OpenAIConfig()
+        self.cfg = cfg
 
     def generate_open_ended_questions(
         self, text: str, num_questions: int = 3, difficulty: str = "Standard"
@@ -107,23 +104,11 @@ Content: {text}
 """
 
         try:
-            # Use appropriate model based on provider
-            if self.use_local_ai:
-                # Use selected model from session state if available, otherwise fall back to config
-                model = getattr(st.session_state, "selected_local_model", self.config.MODEL_NAME)
-            elif self.use_google_ai:
-                model = self.config.CHAT_MODEL
-            else:
-                model = self.config.MODEL
-
-            temperature = self.config.TEMPERATURE
-            max_tokens = self.config.MAX_TOKENS
-
             response = self.client.chat.completions.create(
-                model=model,
+                model=self.cfg.chat_model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=temperature,
-                max_tokens=max_tokens,
+                temperature=GENERATION_TEMPERATURE,
+                max_tokens=GENERATION_MAX_TOKENS,
             )
 
             # Parse JSON response
@@ -222,32 +207,11 @@ Return your evaluation in this exact JSON format:
 """
 
         try:
-            # Use appropriate model based on provider
-            if self.use_local_ai:
-                # Use selected model from session state if available, otherwise fall back to config
-                model = getattr(st.session_state, "selected_local_model", self.config.MODEL_NAME)
-            elif hasattr(self.config, "SCORING_MODEL"):
-                model = self.config.SCORING_MODEL
-            elif self.use_google_ai:
-                model = self.config.CHAT_MODEL
-            else:
-                model = self.config.MODEL
-            temperature = (
-                self.config.SCORING_TEMPERATURE
-                if hasattr(self.config, "SCORING_TEMPERATURE")
-                else 0.3
-            )
-            max_tokens = (
-                self.config.SCORING_MAX_TOKENS
-                if hasattr(self.config, "SCORING_MAX_TOKENS")
-                else 500
-            )
-
             response = self.client.chat.completions.create(
-                model=model,
+                model=self.cfg.scoring_model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=temperature,
-                max_tokens=max_tokens,
+                temperature=SCORING_TEMPERATURE,
+                max_tokens=SCORING_MAX_TOKENS,
             )
 
             content = response.choices[0].message.content.strip()

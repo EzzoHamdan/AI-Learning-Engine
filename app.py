@@ -23,9 +23,7 @@ from learning_engine.settings import (
     DIFFICULTY_CONFIG,
     SCORING_CONFIG,
     AppConfig,
-    GoogleAIConfig,
     LocalAIConfig,
-    OpenAIConfig,
     QuizConfig,
 )
 from learning_engine.study_materials_generator import StudyMaterialsGenerator
@@ -40,8 +38,6 @@ logger = setup_logging()
 # Initialize configuration
 app_config = AppConfig()
 quiz_config = QuizConfig()
-openai_config = OpenAIConfig()
-google_ai_config = GoogleAIConfig()
 local_ai_config = LocalAIConfig()
 
 # Initialize session manager
@@ -109,28 +105,16 @@ def summarize_text(text):
         st.error("❌ No working AI provider available for text summarization.")
         return text  # Return original text if no AI available
 
-    # Use appropriate model based on provider
-    if st.session_state.ai_provider == "Local AI (Ollama)":
-        # Use selected model from session state if available, otherwise fall back to config
-        model = getattr(st.session_state, "selected_local_model", local_ai_config.MODEL_NAME)
-        temperature = local_ai_config.SUMMARY_TEMPERATURE
-    elif st.session_state.ai_provider == "Google AI":
-        model = google_ai_config.CHAT_MODEL
-        temperature = google_ai_config.SUMMARY_TEMPERATURE
-    else:
-        model = "gpt-3.5-turbo"
-        temperature = 0.5
-
     try:
         response = client.chat.completions.create(
-            model=model,
+            model=provider_cfg.chat_model,
             messages=[
                 {
                     "role": "user",
                     "content": f"Summarize the following text into key points:\n{text}",
                 }
             ],
-            temperature=temperature,
+            temperature=SUMMARY_TEMPERATURE,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -253,21 +237,11 @@ Return the response in this exact JSON format:
 Content: {text}
 """
 
-    # Use appropriate model based on provider
-    if st.session_state.ai_provider == "Local AI (Ollama)":
-        # Use selected model from session state if available, otherwise fall back to config
-        model = getattr(st.session_state, "selected_local_model", local_ai_config.MODEL_NAME)
-        temperature = local_ai_config.TEMPERATURE
-    elif st.session_state.ai_provider == "Google AI":
-        model = google_ai_config.CHAT_MODEL
-        temperature = google_ai_config.TEMPERATURE
-    else:
-        model = "gpt-3.5-turbo"
-        temperature = 0.7
-
     try:
         response = client.chat.completions.create(
-            model=model, messages=[{"role": "user", "content": prompt}], temperature=temperature
+            model=provider_cfg.chat_model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=QUIZ_TEMPERATURE,
         )
 
         # Get the response content
@@ -497,11 +471,7 @@ def finalize_quiz(questions, user_answers):
 
         from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
 
-        processor = OpenEndedQuestionProcessor(
-            client,
-            use_google_ai=(st.session_state.ai_provider == "Google AI"),
-            use_local_ai=(st.session_state.ai_provider == "Local AI (Ollama)"),
-        )
+        processor = OpenEndedQuestionProcessor(client, provider_cfg)
 
         for idx, (i, question) in enumerate(open_ended_questions):
             user_answer = user_answers.get(i, "")
@@ -1128,22 +1098,14 @@ def generate_quiz_content(
             if quiz_type == "Open-ended Questions":
                 from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
 
-                processor = OpenEndedQuestionProcessor(
-                    client,
-                    use_google_ai=(st.session_state.ai_provider == "Google AI"),
-                    use_local_ai=(st.session_state.ai_provider == "Local AI (Ollama)"),
-                )
+                processor = OpenEndedQuestionProcessor(client, provider_cfg)
                 quiz_data = processor.generate_open_ended_questions(
                     final_text, num_questions, difficulty
                 )
             elif quiz_type == "Complete Mix (All Types)":
                 from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
 
-                processor = OpenEndedQuestionProcessor(
-                    client,
-                    use_google_ai=(st.session_state.ai_provider == "Google AI"),
-                    use_local_ai=(st.session_state.ai_provider == "Local AI (Ollama)"),
-                )
+                processor = OpenEndedQuestionProcessor(client, provider_cfg)
                 quiz_data = processor.generate_mixed_quiz(
                     final_text, mcq_count, tf_count, open_count, difficulty
                 )
@@ -1182,11 +1144,7 @@ def generate_study_materials_content(final_text, material_type, local_vars):
     with st.spinner(f"📚 Generating {material_type.lower()} using {ai_provider}..."):
         try:
             # Initialize study materials generator
-            materials_generator = StudyMaterialsGenerator(
-                client,
-                use_google_ai=(st.session_state.ai_provider == "Google AI"),
-                use_local_ai=(st.session_state.ai_provider == "Local AI (Ollama)"),
-            )
+            materials_generator = StudyMaterialsGenerator(client, provider_cfg)
 
             # Generate based on material type
             if material_type == "Complete Study Guide":
