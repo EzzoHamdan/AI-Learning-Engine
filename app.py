@@ -1,17 +1,15 @@
 import time
 from datetime import datetime
 
-import docx
-import fitz  # PyMuPDF
 import streamlit as st
 from dotenv import load_dotenv
-from pptx import Presentation
 
 # Load environment variables from .env file
 load_dotenv()
 
 # Import custom modules
 from learning_engine.ai_client_factory import get_client, resolve_provider
+from learning_engine.extraction import ExtractionError, extract_text
 from learning_engine.learning_analytics import analytics
 from learning_engine.generation import materials as materials_gen
 from learning_engine.generation import quiz as quiz_gen
@@ -76,26 +74,6 @@ else:
     st.info(
         "💡 Configure a working AI provider in the sidebar to generate quizzes and study materials."
     )
-
-
-def extract_text_from_pdf(file):
-    doc = fitz.open(stream=file.read(), filetype="pdf")
-    return "\n".join(page.get_text() for page in doc)
-
-
-def extract_text_from_docx(file):
-    doc = docx.Document(file)
-    return "\n".join(para.text for para in doc.paragraphs)
-
-
-def extract_text_from_pptx(file):
-    prs = Presentation(file)
-    text = []
-    for slide in prs.slides:
-        for shape in slide.shapes:
-            if hasattr(shape, "text"):
-                text.append(shape.text)
-    return "\n".join(text)
 
 
 def _mcq_letter(user_answer):
@@ -1094,17 +1072,9 @@ def main():
         # Extract text only if we don't have it already
         if not st.session_state.original_text:
             try:
-                if ext == "pdf":
-                    text = extract_text_from_pdf(uploaded_file)
-                elif ext == "docx":
-                    text = extract_text_from_docx(uploaded_file)
-                elif ext == "pptx":
-                    text = extract_text_from_pptx(uploaded_file)
-                else:
-                    st.error("❌ Unsupported file format")
-                    return
-            except Exception as e:
-                st.error(f"Error reading file: {str(e)}")
+                text = extract_text(uploaded_file.getvalue(), ext)
+            except ExtractionError as e:
+                st.error(f"❌ {e}")
                 return
 
             if not text.strip():
