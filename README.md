@@ -51,8 +51,9 @@ Supports **Local AI (Ollama)**, **Google AI**, and **OpenAI** with complete priv
 - **Performance Tracking**: Visualize quiz scores and trends
 - **Learning Insights**: Identify patterns in your study habits
 - **Progress Monitoring**: Track goals and learning streaks
+- **Persistent History**: Results are saved to a local SQLite database, so streaks and progress survive browser refreshes — toggle between **This session** and **All time**
 - **Engagement Metrics**: Monitor feature usage and study time
-- **Data Export**: Download analytics for external analysis
+- **Data Export**: Download analytics for external analysis (plus a confirmation-gated reset)
 
 ## 🚀 Quick Start
 
@@ -173,8 +174,9 @@ AI-Learning-Engine/
 │   │   ├── quiz.py                     #   quiz generation + open-ended scoring
 │   │   └── materials.py                #   summaries, cheat sheets, flashcards, …
 │   │
-│   ├── analytics/                     # Pure metric math (velocity, streaks, strengths)
-│   │   └── metrics.py
+│   ├── analytics/                     # Pure analytics: math + persistence (no Streamlit)
+│   │   ├── metrics.py                  #   velocity, streaks, strengths/weaknesses
+│   │   └── store.py                    #   SQLite persistence (analytics survive refresh)
 │   │
 │   └── ui/                            # The only layer allowed to import Streamlit
 │       ├── main.py                     #   page config + st.navigation (multipage)
@@ -182,14 +184,14 @@ AI-Learning-Engine/
 │       ├── session.py                  #   provider/API-key session management
 │       ├── providers.py                #   resolve provider → cached client
 │       ├── sidebar.py                  #   sidebar → typed GenerationRequest
-│       ├── tracking.py                 #   session-scoped analytics recording
+│       ├── tracking.py                 #   analytics recording (session + SQLite store)
 │       ├── pages/                      #   study.py + analytics.py
 │       └── components/                 #   quiz_runner, results, flashcards, materials
 │
 ├── scripts/
 │   └── setup_wizard.py                # Interactive setup wizard
 │
-├── tests/                              # Manual smoke checklist (automated tests: Phase 8)
+├── tests/                              # pytest suite (store, metrics) + manual smoke checklist
 └── docs/                               # Documentation, incl. modernization plan
 ```
 
@@ -268,6 +270,10 @@ DEBUG=false
 # Set to true only when hosting the app (e.g. Streamlit Cloud).
 # Controls cloud-deployment behavior; leave unset/false for local use.
 DEPLOYED=false
+
+# Where persistent analytics are stored (default: ~/.learning_engine/analytics.db).
+# Override to relocate the database, e.g. for testing or a portable data path.
+# LEARNING_ENGINE_DB="/path/to/analytics.db"
 ```
 
 ### Runtime Configuration
