@@ -143,23 +143,48 @@ streamlit run app.py
 
 ## 📁 Project Architecture
 
+The package follows a one-directional dependency rule: `ui → generation/analytics
+→ llm/extraction → settings/models`. Nothing below `ui/` imports Streamlit, so the
+generation, extraction, and analytics logic is importable and testable on its own.
+
 ```
 AI-Learning-Engine/
-├── app.py                              # Streamlit entrypoint
+├── app.py                              # Streamlit entrypoint (two-line launcher)
 ├── pyproject.toml                      # Metadata, dependencies, tool config
 ├── uv.lock                             # Pinned dependency lockfile
 ├── .env.example                        # Example environment configuration
 │
 ├── src/learning_engine/                # Importable application package
 │   ├── settings.py                     # Application configuration
-│   ├── session_manager.py             # Session state management
-│   ├── ai_client_factory.py           # Multi-provider client factory
-│   ├── google_ai_client.py            # Google AI wrapper
-│   ├── local_ai_client.py             # Local AI (Ollama) client
-│   ├── open_ended_processor.py        # Open-ended generation & AI scoring
-│   ├── study_materials_generator.py   # Study materials engine
-│   ├── learning_analytics.py          # Analytics & progress tracking
-│   └── logger.py                      # Logging system
+│   ├── models.py                       # Pydantic domain models (typed LLM output)
+│   ├── logger.py                       # Logging system
+│   │
+│   ├── extraction/                     # Document text extraction (bytes in, text out)
+│   │   ├── __init__.py                 #   dispatcher + size/format validation
+│   │   ├── pdf.py  ├── docx.py  └── pptx.py
+│   │
+│   ├── llm/                            # One OpenAI-compatible client for every provider
+│   │   ├── client.py                   #   make_client + typed exceptions
+│   │   ├── providers.py                #   provider configs + health checks
+│   │   └── structured.py               #   schema-validated generation (+ 1 retry)
+│   │
+│   ├── generation/                    # Pure generation logic (no Streamlit)
+│   │   ├── prompts.py                  #   single source for prompts/difficulty text
+│   │   ├── quiz.py                     #   quiz generation + open-ended scoring
+│   │   └── materials.py                #   summaries, cheat sheets, flashcards, …
+│   │
+│   ├── analytics/                     # Pure metric math (velocity, streaks, strengths)
+│   │   └── metrics.py
+│   │
+│   └── ui/                            # The only layer allowed to import Streamlit
+│       ├── main.py                     #   page config + st.navigation (multipage)
+│       ├── state.py                    #   typed session-state accessors + resets
+│       ├── session.py                  #   provider/API-key session management
+│       ├── providers.py                #   resolve provider → cached client
+│       ├── sidebar.py                  #   sidebar → typed GenerationRequest
+│       ├── tracking.py                 #   session-scoped analytics recording
+│       ├── pages/                      #   study.py + analytics.py
+│       └── components/                 #   quiz_runner, results, flashcards, materials
 │
 ├── scripts/
 │   └── setup_wizard.py                # Interactive setup wizard
