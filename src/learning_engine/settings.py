@@ -2,6 +2,7 @@
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -139,6 +140,11 @@ class AppConfig:
 
     # Environment variables with sensible defaults
     DEBUG_MODE: bool = os.getenv("DEBUG", "false").lower() == "true"
+
+    # Where persistent analytics live (survives browser refresh; overridable for tests).
+    DB_PATH: str = os.getenv(
+        "LEARNING_ENGINE_DB", str(Path.home() / ".learning_engine" / "analytics.db")
+    )
 
     @property
     def available_providers(self) -> list[str]:

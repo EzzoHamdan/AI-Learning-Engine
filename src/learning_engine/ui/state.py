@@ -7,11 +7,13 @@ old app.py copied in four places has a single implementation here.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING, Any
 
 import streamlit as st
 
 if TYPE_CHECKING:
+    from learning_engine.analytics.store import AnalyticsStore
     from learning_engine.models import Quiz
     from learning_engine.ui.tracking import AnalyticsTracker
 
@@ -47,12 +49,26 @@ def init_state() -> None:
             st.session_state[key] = value.copy() if isinstance(value, dict) else value
 
 
+def store() -> AnalyticsStore | None:
+    """The persistent analytics store (built once; None if the DB can't be opened)."""
+    if "analytics_store" not in st.session_state:
+        from learning_engine.analytics.store import AnalyticsStore
+        from learning_engine.settings import AppConfig
+
+        try:
+            st.session_state.analytics_store = AnalyticsStore(AppConfig().DB_PATH)
+        except Exception:
+            logging.getLogger("quiz_generator").exception("Could not open analytics store")
+            st.session_state.analytics_store = None
+    return st.session_state.analytics_store
+
+
 def tracker() -> AnalyticsTracker:
     """The per-session analytics tracker (constructed once, on first use)."""
     if "analytics_tracker" not in st.session_state:
         from learning_engine.ui.tracking import AnalyticsTracker
 
-        st.session_state.analytics_tracker = AnalyticsTracker()
+        st.session_state.analytics_tracker = AnalyticsTracker(store())
     return st.session_state.analytics_tracker
 
 

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from typing import TYPE_CHECKING, Protocol
 
 import pandas as pd
 import plotly.express as px
@@ -16,15 +17,80 @@ from learning_engine.analytics import metrics
 from learning_engine.ui import state
 from learning_engine.ui.tracking import AnalyticsTracker
 
+if TYPE_CHECKING:
+    from learning_engine.analytics.store import AnalyticsStore
+
+
+class AnalyticsView(Protocol):
+    """The read surface the dashboard needs — satisfied by both the session tracker
+    (in-memory, "This session") and _StoreView (persistent, "All time").
+
+    Members are read-only properties so both a property-backed tracker and an
+    attribute-backed _StoreView structurally conform."""
+
+    @property
+    def quiz_analytics(self) -> dict: ...
+    @property
+    def materials_analytics(self) -> dict: ...
+    @property
+    def engagement_metrics(self) -> dict: ...
+    @property
+    def learning_history(self) -> list[dict]: ...
+
+
+class _StoreView:
+    """All-time analytics reconstructed from the persistent store.
+
+    Exposes the same attributes as AnalyticsTracker so every render helper works
+    unchanged whether the user is viewing "This session" or "All time".
+    """
+
+    def __init__(self, store: AnalyticsStore) -> None:
+        totals = store.totals()
+        self.quiz_analytics = {
+            "total_quizzes": totals["total_quizzes"],
+            "total_questions": totals["total_questions"],
+            "total_correct": totals["total_correct"],
+            "difficulty_breakdown": store.difficulty_breakdown(),
+            "type_breakdown": store.type_breakdown(),
+            "performance_over_time": store.performance_over_time(),
+            "detailed_results": store.detailed_results(),
+        }
+        self.materials_analytics = store.material_stats()
+        self.engagement_metrics = {
+            # feature/provider usage aren't persisted (session-only); existing
+            # `if` guards hide their empty charts in the all-time view.
+            "ai_provider_usage": {},
+            "feature_usage": {},
+            "flashcard_interactions": store.flashcard_totals(),
+        }
+        self.learning_history = store.learning_history()
+
 
 def render() -> None:
     """Render the analytics dashboard page."""
     tracker = state.tracker()
+    store = state.store()
 
     st.title("📊 Learning Analytics & Progress Tracking")
+
+    scope = "This session"
+    if store is not None:
+        scope = (
+            st.segmented_control(
+                "View",
+                ["This session", "All time"],
+                default="All time",
+                key="analytics_scope",
+                help="'All time' spans every session (persisted); 'This session' is live only.",
+            )
+            or "All time"
+        )
     st.markdown("---")
 
-    _session_overview(tracker)
+    view: AnalyticsView = tracker if scope == "This session" else _StoreView(store)
+
+    _session_overview(tracker, view, scope)
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(
         [
@@ -37,22 +103,23 @@ def render() -> None:
     )
 
     with tab1:
-        _performance_analytics(tracker)
+        _performance_analytics(view)
     with tab2:
-        _quiz_insights(tracker)
+        _quiz_insights(view)
     with tab3:
-        _materials_analytics(tracker)
+        _materials_analytics(view)
     with tab4:
-        _progress_tracking(tracker)
+        _progress_tracking(view)
     with tab5:
-        _detailed_analysis(tracker)
+        _detailed_analysis(tracker, view, store, scope)
 
 
-def _session_overview(tracker: AnalyticsTracker) -> None:
-    """Display current session overview."""
+def _session_overview(tracker: AnalyticsTracker, view: AnalyticsView, scope: str) -> None:
+    """Display the top-of-page overview (duration is always this session)."""
     session_duration = datetime.now() - tracker.session_start_time
     hours, remainder = divmod(session_duration.total_seconds(), 3600)
     minutes, seconds = divmod(remainder, 60)
+    suffix = "this session" if scope == "This session" else "all time"
 
     col1, col2, col3, col4 = st.columns(4)
 
@@ -66,29 +133,27 @@ def _session_overview(tracker: AnalyticsTracker) -> None:
     with col2:
         st.metric(
             "Quizzes Completed",
-            tracker.quiz_analytics["total_quizzes"],
-            help="Number of quizzes completed this session",
+            view.quiz_analytics["total_quizzes"],
+            help=f"Number of quizzes completed ({suffix})",
         )
 
     with col3:
         st.metric(
             "Materials Generated",
-            tracker.materials_analytics["total_materials"],
-            help="Study materials created this session",
+            view.materials_analytics["total_materials"],
+            help=f"Study materials created ({suffix})",
         )
 
     with col4:
-        avg_score = metrics.average_score(tracker.quiz_analytics["performance_over_time"])
-        st.metric(
-            "Average Score", f"{avg_score:.1f}%", help="Average quiz performance this session"
-        )
+        avg_score = metrics.average_score(view.quiz_analytics["performance_over_time"])
+        st.metric("Average Score", f"{avg_score:.1f}%", help=f"Average quiz performance ({suffix})")
 
 
-def _performance_analytics(tracker: AnalyticsTracker) -> None:
+def _performance_analytics(view: AnalyticsView) -> None:
     """Display performance analytics charts and metrics."""
     st.subheader("📈 Performance Analytics")
 
-    quiz_analytics = tracker.quiz_analytics
+    quiz_analytics = view.quiz_analytics
     performance_data = quiz_analytics["performance_over_time"]
 
     if not performance_data:
@@ -171,11 +236,11 @@ def _performance_analytics(tracker: AnalyticsTracker) -> None:
             )
 
 
-def _quiz_insights(tracker: AnalyticsTracker) -> None:
+def _quiz_insights(view: AnalyticsView) -> None:
     """Display detailed quiz insights and patterns."""
     st.subheader("🎯 Quiz Insights & Patterns")
 
-    detailed_results = tracker.quiz_analytics["detailed_results"]
+    detailed_results = view.quiz_analytics["detailed_results"]
 
     if not detailed_results:
         st.info("📝 Complete some quizzes to see detailed insights!")
@@ -257,11 +322,11 @@ def _quiz_insights(tracker: AnalyticsTracker) -> None:
             )
 
 
-def _materials_analytics(tracker: AnalyticsTracker) -> None:
+def _materials_analytics(view: AnalyticsView) -> None:
     """Display study materials analytics."""
     st.subheader("📚 Study Materials Analytics")
 
-    materials_analytics = tracker.materials_analytics
+    materials_analytics = view.materials_analytics
 
     if materials_analytics["total_materials"] == 0:
         st.info("📚 Generate some study materials to see analytics!")
@@ -313,7 +378,7 @@ def _materials_analytics(tracker: AnalyticsTracker) -> None:
         st.plotly_chart(fig_generation_time, width="stretch")
 
 
-def _progress_tracking(tracker: AnalyticsTracker) -> None:
+def _progress_tracking(view: AnalyticsView) -> None:
     """Display progress tracking and goal setting."""
     st.subheader("🚀 Progress Tracking & Goals")
 
@@ -341,7 +406,7 @@ def _progress_tracking(tracker: AnalyticsTracker) -> None:
         )
 
     # Progress towards goals
-    quiz_analytics = tracker.quiz_analytics
+    quiz_analytics = view.quiz_analytics
     current_avg = metrics.average_score(quiz_analytics["performance_over_time"])
     current_quizzes = quiz_analytics["total_quizzes"]
 
@@ -368,7 +433,7 @@ def _progress_tracking(tracker: AnalyticsTracker) -> None:
     # Learning streaks
     st.subheader("🔥 Learning Streaks")
 
-    learning_history = tracker.learning_history
+    learning_history = view.learning_history
     if learning_history:
         unique_days = {entry["timestamp"].date() for entry in learning_history}
         current_streak = metrics.calculate_current_streak(unique_days, datetime.now().date())
@@ -388,7 +453,7 @@ def _progress_tracking(tracker: AnalyticsTracker) -> None:
     # Engagement metrics
     st.subheader("📊 Engagement Metrics")
 
-    engagement = tracker.engagement_metrics
+    engagement = view.engagement_metrics
 
     if engagement["feature_usage"]:
         fig_engagement = px.bar(
@@ -409,20 +474,28 @@ def _progress_tracking(tracker: AnalyticsTracker) -> None:
         st.plotly_chart(fig_providers, width="stretch")
 
 
-def _detailed_analysis(tracker: AnalyticsTracker) -> None:
-    """Display detailed analysis and insights."""
+def _detailed_analysis(
+    tracker: AnalyticsTracker,
+    view: AnalyticsView,
+    store: AnalyticsStore | None,
+    scope: str,
+) -> None:
+    """Display detailed analysis, data export, and (persistent) data reset."""
     st.subheader("🔍 Detailed Analysis")
 
-    # Session timeline
-    st.subheader("⏱️ Session Timeline")
+    all_time = scope != "This session"
+    ts_format = "%Y-%m-%d %H:%M" if all_time else "%H:%M:%S"
 
-    learning_history = tracker.learning_history
+    # Activity timeline
+    st.subheader("⏱️ Activity Timeline")
+
+    learning_history = view.learning_history
 
     if learning_history:
         timeline_df = pd.DataFrame(
             [
                 {
-                    "Time": entry["timestamp"].strftime("%H:%M:%S"),
+                    "Time": entry["timestamp"].strftime(ts_format),
                     "Activity": entry["type"].replace("_", " ").title(),
                     "Details": _format_activity_details(entry),
                 }
@@ -431,16 +504,16 @@ def _detailed_analysis(tracker: AnalyticsTracker) -> None:
         )
         st.dataframe(timeline_df, width="stretch")
     else:
-        st.info("No activities recorded yet in this session.")
+        st.info("No activities recorded yet.")
 
     # Detailed quiz statistics
-    detailed_results = tracker.quiz_analytics["detailed_results"]
+    detailed_results = view.quiz_analytics["detailed_results"]
     if detailed_results:
         st.subheader("📊 Detailed Quiz Statistics")
 
         with st.expander("📈 All Quiz Results"):
             for i, result in enumerate(detailed_results, 1):
-                st.write(f"**Quiz {i}** - {result['timestamp'].strftime('%H:%M:%S')}")
+                st.write(f"**Quiz {i}** - {result['timestamp'].strftime(ts_format)}")
                 st.write(f"- Type: {result['quiz_type']}")
                 st.write(f"- Difficulty: {result['difficulty']}")
                 st.write(f"- Score: {result['overall_score']:.1f}%")
@@ -453,7 +526,7 @@ def _detailed_analysis(tracker: AnalyticsTracker) -> None:
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("📊 Export Quiz Data"):
+        if st.button("📊 Export This Session"):
             export_data = {
                 "session_info": {
                     "start_time": tracker.session_start_time.isoformat(),
@@ -468,15 +541,36 @@ def _detailed_analysis(tracker: AnalyticsTracker) -> None:
             export_json = _convert_datetimes(export_data)
 
             st.download_button(
-                label="📥 Download JSON",
+                label="📥 Download session JSON",
                 data=json.dumps(export_json, indent=2),
-                file_name=f"learning_analytics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                file_name=f"learning_session_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                 mime="application/json",
             )
 
     with col2:
-        if st.button("📈 Generate Report"):
-            _summary_report(tracker)
+        if store is not None and st.button("🗄️ Export All-Time Data"):
+            st.download_button(
+                label="📥 Download all-time JSON",
+                data=json.dumps(store.export(), indent=2),
+                file_name=f"learning_analytics_all_time_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+            )
+
+    if st.button("📈 Generate Report"):
+        _summary_report(tracker, view, scope)
+
+    # Reset persisted data (with confirmation)
+    if store is not None:
+        st.markdown("---")
+        st.subheader("🗑️ Reset Saved Data")
+        st.caption(
+            "Permanently deletes all persisted analytics (the 'All time' view). "
+            "Your current session's live view stays until you refresh."
+        )
+        confirm = st.checkbox("I understand this permanently deletes my saved analytics.")
+        if st.button("Delete all saved data", type="primary", disabled=not confirm):
+            store.reset()
+            st.success("✅ All saved analytics deleted.")
 
 
 def _format_activity_details(entry: dict) -> str:
@@ -507,17 +601,18 @@ def _convert_datetimes(obj):
         return obj
 
 
-def _summary_report(tracker: AnalyticsTracker) -> None:
-    """Generate a comprehensive summary report."""
-    st.subheader("📋 Learning Session Summary Report")
+def _summary_report(tracker: AnalyticsTracker, view: AnalyticsView, scope: str) -> None:
+    """Generate a comprehensive summary report for the selected scope."""
+    label = "Session" if scope == "This session" else "All-Time"
+    st.subheader(f"📋 Learning {label} Summary Report")
 
-    session_duration = datetime.now() - tracker.session_start_time
-    quiz_analytics = tracker.quiz_analytics
-    materials_analytics = tracker.materials_analytics
+    quiz_analytics = view.quiz_analytics
+    materials_analytics = view.materials_analytics
 
-    # Session overview
-    st.write("**📊 Session Overview:**")
-    st.write(f"- Duration: {session_duration}")
+    # Overview
+    st.write(f"**📊 {label} Overview:**")
+    if scope == "This session":
+        st.write(f"- Duration: {datetime.now() - tracker.session_start_time}")
     st.write(f"- Quizzes Completed: {quiz_analytics['total_quizzes']}")
     st.write(f"- Total Questions Answered: {quiz_analytics['total_questions']}")
     st.write(f"- Materials Generated: {materials_analytics['total_materials']}")

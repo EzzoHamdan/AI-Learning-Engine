@@ -9,17 +9,31 @@ import-time singleton is gone.
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import streamlit as st
 
 from learning_engine.analytics import metrics
 
+if TYPE_CHECKING:
+    from learning_engine.analytics.store import AnalyticsStore
+
+logger = logging.getLogger("quiz_generator")
+
 
 class AnalyticsTracker:
-    """Records learning events into st.session_state for the current session."""
+    """Records learning events into st.session_state (and, if given, a persistent store).
 
-    def __init__(self) -> None:
+    Session-state keeps the "This session" view; the optional store keeps the
+    "All time" view alive across refreshes. Every store write is best-effort — a
+    persistence failure degrades to session-only tracking, never a broken quiz.
+    """
+
+    def __init__(self, store: AnalyticsStore | None = None) -> None:
+        self._store = store
         self._init_session_state()
 
     def _init_session_state(self) -> None:
@@ -66,6 +80,15 @@ class AnalyticsTracker:
                     "skipped_responses": 0,
                 },
             }
+
+    def _persist(self, write: Callable[[], object]) -> None:
+        """Run a store write, swallowing errors so persistence never breaks the app."""
+        if self._store is None:
+            return
+        try:
+            write()
+        except Exception as exc:  # noqa: BLE001 — best-effort persistence
+            logger.warning("Analytics persistence failed: %s", exc)
 
     # ----------------------------------------------------------------- #
     # Read-side conveniences for the dashboard / welcome screen
@@ -183,6 +206,17 @@ class AnalyticsTracker:
 
         analytics["detailed_results"].append(detailed_result)
 
+        self._persist(
+            lambda: self._store.record_quiz(
+                difficulty=difficulty,
+                quiz_type=mapped_type,
+                total_questions=total_questions,
+                correct=correct_count,
+                score_pct=overall_percentage,
+                questions=detailed_result["questions"],
+            )
+        )
+
         self.add_to_learning_history(
             "quiz_completion",
             {
@@ -222,6 +256,10 @@ class AnalyticsTracker:
             }
         )
 
+        self._persist(
+            lambda: self._store.record_material_event(material_type, generation_time, success)
+        )
+
         self.add_to_learning_history(
             "materials_generation",
             {"type": material_type, "success": success, "time": generation_time},
@@ -241,6 +279,7 @@ class AnalyticsTracker:
 
         self.engagement_metrics["flashcard_interactions"][counter] += 1
         self.track_feature_usage("flashcards")
+        self._persist(lambda: self._store.record_flashcard_event(action))
 
     def track_feature_usage(self, feature: str) -> None:
         """Track usage of different app features."""
