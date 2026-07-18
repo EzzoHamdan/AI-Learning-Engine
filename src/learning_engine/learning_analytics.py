@@ -6,12 +6,13 @@ for the AI Learning Engine, analyzing data from the current session.
 """
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 
-import numpy as np
 import pandas as pd
 import plotly.express as px
 import streamlit as st
+
+from learning_engine.analytics import metrics
 
 
 class LearningAnalytics:
@@ -268,148 +269,19 @@ class LearningAnalytics:
 
     def _analyze_question_difficulty(self, question: dict) -> str:
         """Analyze question difficulty based on content."""
-
-        question_text = question.get("question", "").lower()
-
-        # Simple heuristics for difficulty analysis
-        if any(
-            word in question_text
-            for word in ["analyze", "evaluate", "compare", "synthesize", "critique"]
-        ):
-            return "high"
-        elif any(word in question_text for word in ["explain", "describe", "discuss", "apply"]):
-            return "medium"
-        else:
-            return "basic"
+        return metrics.analyze_question_difficulty(question.get("question", ""))
 
     def calculate_learning_velocity(self) -> dict:
         """Calculate learning velocity and trend metrics."""
-
-        quiz_history = st.session_state.quiz_analytics["performance_over_time"]
-        if len(quiz_history) < 2:
-            return {"trend": "insufficient_data", "velocity": 0, "acceleration": 0}
-
-        # Sort by timestamp
-        sorted_history = sorted(quiz_history, key=lambda x: x["timestamp"])
-
-        # Calculate score trend
-        scores = [entry["score_percentage"] for entry in sorted_history]
-
-        if len(scores) >= 2:
-            # Simple linear trend
-            x = np.arange(len(scores))
-            z = np.polyfit(x, scores, 1)
-            velocity = z[0]  # Slope represents learning velocity
-
-            if len(scores) >= 3:
-                # Calculate acceleration (change in velocity)
-                recent_scores = scores[-3:]
-                early_scores = scores[:3] if len(scores) >= 6 else scores[: len(scores) // 2]
-
-                if len(early_scores) >= 2 and len(recent_scores) >= 2:
-                    early_trend = np.polyfit(range(len(early_scores)), early_scores, 1)[0]
-                    recent_trend = np.polyfit(range(len(recent_scores)), recent_scores, 1)[0]
-                    acceleration = recent_trend - early_trend
-                else:
-                    acceleration = 0
-            else:
-                acceleration = 0
-
-            # Determine trend
-            if velocity > 1:
-                trend = "improving"
-            elif velocity < -1:
-                trend = "declining"
-            else:
-                trend = "stable"
-
-            return {
-                "trend": trend,
-                "velocity": velocity,
-                "acceleration": acceleration,
-                "confidence": min(len(scores) / 5, 1.0),  # Confidence increases with more data
-            }
-
-        return {"trend": "insufficient_data", "velocity": 0, "acceleration": 0}
+        return metrics.calculate_learning_velocity(
+            st.session_state.quiz_analytics["performance_over_time"]
+        )
 
     def get_strength_weakness_analysis(self) -> dict:
         """Analyze strengths and weaknesses based on quiz performance."""
-
-        detailed_results = st.session_state.quiz_analytics["detailed_results"]
-        if not detailed_results:
-            return {"strengths": [], "weaknesses": [], "recommendations": []}
-
-        # Analyze by question type
-        type_performance = {}
-        difficulty_performance = {}
-
-        for result in detailed_results:
-            for question in result["questions"]:
-                q_type = question["question_type"]
-                difficulty = question["difficulty_tag"]
-                is_correct = question["correct"]
-
-                # Track by type
-                if q_type not in type_performance:
-                    type_performance[q_type] = {"correct": 0, "total": 0}
-                type_performance[q_type]["total"] += 1
-                if is_correct:
-                    type_performance[q_type]["correct"] += 1
-
-                # Track by difficulty
-                if difficulty not in difficulty_performance:
-                    difficulty_performance[difficulty] = {"correct": 0, "total": 0}
-                difficulty_performance[difficulty]["total"] += 1
-                if is_correct:
-                    difficulty_performance[difficulty]["correct"] += 1
-
-        # Calculate performance percentages
-        type_percentages = {}
-        for q_type, stats in type_performance.items():
-            type_percentages[q_type] = (
-                (stats["correct"] / stats["total"]) * 100 if stats["total"] > 0 else 0
-            )
-
-        difficulty_percentages = {}
-        for difficulty, stats in difficulty_performance.items():
-            difficulty_percentages[difficulty] = (
-                (stats["correct"] / stats["total"]) * 100 if stats["total"] > 0 else 0
-            )
-
-        # Identify strengths and weaknesses
-        strengths = []
-        weaknesses = []
-        recommendations = []
-
-        # Type-based analysis
-        for q_type, percentage in type_percentages.items():
-            if percentage >= 80:
-                strengths.append(f"Strong performance in {q_type} questions ({percentage:.1f}%)")
-            elif percentage < 60:
-                weaknesses.append(f"Needs improvement in {q_type} questions ({percentage:.1f}%)")
-                recommendations.append(f"Practice more {q_type} questions to improve understanding")
-
-        # Difficulty-based analysis
-        for difficulty, percentage in difficulty_percentages.items():
-            if percentage >= 80:
-                strengths.append(
-                    f"Excellent handling of {difficulty} difficulty questions ({percentage:.1f}%)"
-                )
-            elif percentage < 60:
-                weaknesses.append(
-                    f"Struggles with {difficulty} difficulty questions ({percentage:.1f}%)"
-                )
-                recommendations.append(
-                    f"Focus on building foundational knowledge for {difficulty} concepts"
-                )
-
-        return {
-            "strengths": strengths,
-            "weaknesses": weaknesses,
-            "recommendations": recommendations,
-            "type_performance": type_percentages,
-            "difficulty_performance": difficulty_percentages,
-        }
+        return metrics.strength_weakness_analysis(
+            st.session_state.quiz_analytics["detailed_results"]
+        )
 
     def display_analytics_dashboard(self):
         """Display the main analytics dashboard."""
@@ -797,24 +669,8 @@ class LearningAnalytics:
 
         learning_history = st.session_state.learning_history
         if learning_history:
-            # Calculate current streak
-            today = datetime.now().date()
-            unique_days = set()
-
-            for entry in learning_history:
-                entry_date = entry["timestamp"].date()
-                unique_days.add(entry_date)
-
-            # Sort dates and calculate streak
-            sorted_dates = sorted(unique_days, reverse=True)
-            current_streak = 0
-
-            for i, date in enumerate(sorted_dates):
-                expected_date = today - timedelta(days=i)
-                if date == expected_date:
-                    current_streak += 1
-                else:
-                    break
+            unique_days = {entry["timestamp"].date() for entry in learning_history}
+            current_streak = metrics.calculate_current_streak(unique_days, datetime.now().date())
 
             col1, col2, col3 = st.columns(3)
 
@@ -825,8 +681,7 @@ class LearningAnalytics:
                 st.metric("Total Active Days", len(unique_days))
 
             with col3:
-                # Calculate longest streak
-                longest_streak = self._calculate_longest_streak(sorted_dates)
+                longest_streak = metrics.calculate_longest_streak(unique_days)
                 st.metric("Longest Streak", f"{longest_streak} days")
 
         # Engagement metrics
@@ -921,25 +776,6 @@ class LearningAnalytics:
         with col2:
             if st.button("📈 Generate Report"):
                 self._generate_summary_report()
-
-    def _calculate_longest_streak(self, sorted_dates: list) -> int:
-        """Calculate the longest learning streak."""
-
-        if not sorted_dates:
-            return 0
-
-        longest = 1
-        current = 1
-
-        for i in range(1, len(sorted_dates)):
-            # Check if dates are consecutive
-            if (sorted_dates[i - 1] - sorted_dates[i]).days == 1:
-                current += 1
-                longest = max(longest, current)
-            else:
-                current = 1
-
-        return longest
 
     def _format_activity_details(self, entry: dict) -> str:
         """Format activity details for timeline display."""
