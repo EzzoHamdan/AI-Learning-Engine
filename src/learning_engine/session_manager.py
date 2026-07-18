@@ -7,9 +7,9 @@ JSON, and because cloud detection was always true it never actually ran
 (BUG-4), so nothing is lost by removing it.
 """
 
-import streamlit as st
 import os
-from typing import Dict, List
+
+import streamlit as st
 
 
 class SessionManager:
@@ -40,6 +40,7 @@ class SessionManager:
         if "selected_local_model" not in st.session_state:
             # Initialize with default model from config
             from learning_engine.settings import LocalAIConfig
+
             st.session_state.selected_local_model = LocalAIConfig().MODEL_NAME
 
         # API Keys
@@ -62,7 +63,7 @@ class SessionManager:
         else:
             return "Local AI (Ollama)"  # Default fallback
 
-    def _load_saved_api_keys(self) -> Dict[str, str]:
+    def _load_saved_api_keys(self) -> dict[str, str]:
         """Load API keys from Streamlit secrets (when deployed) and environment."""
         api_keys = {
             "openai": "",
@@ -72,7 +73,7 @@ class SessionManager:
         # In cloud deployments, prioritize Streamlit secrets
         if self.is_cloud_deployment:
             try:
-                if hasattr(st, 'secrets'):
+                if hasattr(st, "secrets"):
                     api_keys["openai"] = st.secrets.get("OPENAI_API_KEY", "")
                     api_keys["google_ai"] = st.secrets.get("GOOGLE_AI_API_KEY", "")
             except Exception:
@@ -86,19 +87,13 @@ class SessionManager:
 
     def get_api_key(self, provider: str) -> str:
         """Get API key for specified provider."""
-        key_mapping = {
-            "OpenAI": "openai",
-            "Google AI": "google_ai"
-        }
+        key_mapping = {"OpenAI": "openai", "Google AI": "google_ai"}
         key_name = key_mapping.get(provider, "")
         return st.session_state.api_keys.get(key_name, "")
 
     def set_api_key(self, provider: str, key: str):
         """Set API key for specified provider."""
-        key_mapping = {
-            "OpenAI": "openai",
-            "Google AI": "google_ai"
-        }
+        key_mapping = {"OpenAI": "openai", "Google AI": "google_ai"}
         key_name = key_mapping.get(provider, "")
         if key_name:
             st.session_state.api_keys[key_name] = key
@@ -143,10 +138,10 @@ class SessionManager:
             available, message = self.check_provider_availability(provider)
             st.session_state.provider_status[provider] = {
                 "available": available,
-                "message": message
+                "message": message,
             }
 
-    def get_available_providers(self) -> List[str]:
+    def get_available_providers(self) -> list[str]:
         """Get list of available providers."""
         available = []
         for provider, status in st.session_state.provider_status.items():
@@ -170,7 +165,7 @@ class SessionManager:
             "OpenAI API Key:",
             value=current_openai,
             type="password",
-            help="Enter your OpenAI API key for GPT models"
+            help="Enter your OpenAI API key for GPT models",
         )
         if openai_key != current_openai:
             self.set_api_key("OpenAI", openai_key)
@@ -181,7 +176,7 @@ class SessionManager:
             "Google AI API Key:",
             value=current_google,
             type="password",
-            help="Enter your Google AI API key for Gemini models"
+            help="Enter your Google AI API key for Gemini models",
         )
         if google_key != current_google:
             self.set_api_key("Google AI", google_key)
@@ -216,7 +211,7 @@ class SessionManager:
             "Choose AI Provider:",
             provider_options,
             index=current_index,
-            help="Select your preferred AI provider"
+            help="Select your preferred AI provider",
         )
 
         # Extract provider name from selection

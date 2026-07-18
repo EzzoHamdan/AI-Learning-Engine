@@ -7,18 +7,20 @@ from document content using AI providers.
 
 Supported Materials:
 - Comprehensive Summaries
-- Quick Reference Cheat Sheets  
+- Quick Reference Cheat Sheets
 - Interactive Flashcards
 - Study Outlines
 - Key Terms & Definitions
 """
 
 import json
-import re
 import logging
-from typing import Dict, Any, Tuple
-import streamlit as st
+import re
 from datetime import datetime
+from typing import Any
+
+import streamlit as st
+
 from learning_engine.settings import GoogleAIConfig
 
 logger = logging.getLogger(__name__)
@@ -26,11 +28,11 @@ logger = logging.getLogger(__name__)
 
 class StudyMaterialsGenerator:
     """Generates various study materials from document content."""
-    
+
     def __init__(self, client, use_google_ai=False, use_local_ai=False):
         """
         Initialize the study materials generator.
-        
+
         Args:
             client: AI client (OpenAI-compatible interface)
             use_google_ai: Whether using Google AI provider
@@ -39,12 +41,12 @@ class StudyMaterialsGenerator:
         self.client = client
         self.use_google_ai = use_google_ai
         self.use_local_ai = use_local_ai
-    
-    def _get_model_config(self) -> Tuple[str, float]:
+
+    def _get_model_config(self) -> tuple[str, float]:
         """Get appropriate model and temperature based on provider."""
         if self.use_local_ai:
             # Use selected model from session state if available
-            model = getattr(st.session_state, 'selected_local_model', 'gemma2:2b')
+            model = getattr(st.session_state, "selected_local_model", "gemma2:2b")
             temperature = 0.3  # Lower temperature for more consistent study materials
         elif self.use_google_ai:
             model = GoogleAIConfig().CHAT_MODEL
@@ -52,36 +54,36 @@ class StudyMaterialsGenerator:
         else:
             model = "gpt-3.5-turbo"
             temperature = 0.3
-        
+
         return model, temperature
-    
+
     def _make_api_call(self, prompt: str) -> str:
         """Make API call with error handling."""
         model, temperature = self._get_model_config()
-        
+
         try:
             response = self.client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=temperature
+                model=model, messages=[{"role": "user", "content": prompt}], temperature=temperature
             )
             return response.choices[0].message.content.strip()
         except Exception as e:
             logger.error(f"API call failed: {str(e)}")
             raise Exception(f"Failed to generate content: {str(e)}")
-    
-    def generate_comprehensive_summary(self, text: str, summary_type: str = "detailed") -> Dict[str, Any]:
+
+    def generate_comprehensive_summary(
+        self, text: str, summary_type: str = "detailed"
+    ) -> dict[str, Any]:
         """
         Generate a comprehensive summary of the document content.
-        
+
         Args:
             text: Input text to summarize
             summary_type: Type of summary ("detailed", "concise", "bullet_points")
-            
+
         Returns:
             Dict containing the summary and metadata
         """
-        
+
         type_instructions = {
             "detailed": """
             Create a comprehensive, detailed summary that covers all major topics and subtopics.
@@ -100,11 +102,11 @@ class StudyMaterialsGenerator:
             Use hierarchical bullet points (main points and sub-points).
             Each bullet should be a complete thought.
             Group related concepts together.
-            """
+            """,
         }
-        
+
         instruction = type_instructions.get(summary_type, type_instructions["detailed"])
-        
+
         prompt = f"""
         Please create a {summary_type} summary of the following content.
         
@@ -122,17 +124,17 @@ class StudyMaterialsGenerator:
         Content to summarize:
         {text}
         """
-        
+
         try:
             response_content = self._make_api_call(prompt)
-            
+
             # Try to parse JSON response
             try:
                 summary_data = json.loads(response_content)
                 return summary_data
             except json.JSONDecodeError:
                 # Fallback: extract JSON from response
-                json_match = re.search(r'\{.*\}', response_content, re.DOTALL)
+                json_match = re.search(r"\{.*\}", response_content, re.DOTALL)
                 if json_match:
                     summary_data = json.loads(json_match.group())
                     return summary_data
@@ -144,24 +146,24 @@ class StudyMaterialsGenerator:
                         "main_topics": [],
                         "word_count": len(response_content.split()),
                         "summary_type": summary_type,
-                        "error": "Could not parse structured response"
+                        "error": "Could not parse structured response",
                     }
-                    
+
         except Exception as e:
             return {"error": f"Failed to generate summary: {str(e)}"}
-    
-    def generate_cheat_sheet(self, text: str, format_type: str = "comprehensive") -> Dict[str, Any]:
+
+    def generate_cheat_sheet(self, text: str, format_type: str = "comprehensive") -> dict[str, Any]:
         """
         Generate a quick reference cheat sheet.
-        
+
         Args:
             text: Input text to create cheat sheet from
             format_type: Type of cheat sheet ("comprehensive", "formulas", "definitions", "quick_ref")
-            
+
         Returns:
             Dict containing the cheat sheet and metadata
         """
-        
+
         format_instructions = {
             "comprehensive": """
             Create a comprehensive cheat sheet with:
@@ -191,11 +193,11 @@ class StudyMaterialsGenerator:
             - Bullet points and short phrases
             - Easy to scan format
             - Critical facts and figures
-            """
+            """,
         }
-        
+
         instruction = format_instructions.get(format_type, format_instructions["comprehensive"])
-        
+
         prompt = f"""
         Create a study cheat sheet from the following content.
         
@@ -234,17 +236,17 @@ class StudyMaterialsGenerator:
         Content:
         {text}
         """
-        
+
         try:
             response_content = self._make_api_call(prompt)
-            
+
             # Try to parse JSON response
             try:
                 cheat_sheet_data = json.loads(response_content)
                 return cheat_sheet_data
             except json.JSONDecodeError:
                 # Fallback: extract JSON from response
-                json_match = re.search(r'\{.*\}', response_content, re.DOTALL)
+                json_match = re.search(r"\{.*\}", response_content, re.DOTALL)
                 if json_match:
                     cheat_sheet_data = json.loads(json_match.group())
                     return cheat_sheet_data
@@ -252,30 +254,34 @@ class StudyMaterialsGenerator:
                     # Manual fallback
                     return {
                         "title": "Study Cheat Sheet",
-                        "sections": [{"heading": "Content", "content": response_content, "items": []}],
+                        "sections": [
+                            {"heading": "Content", "content": response_content, "items": []}
+                        ],
                         "key_terms": [],
                         "formulas": [],
                         "quick_tips": [],
                         "format_type": format_type,
-                        "error": "Could not parse structured response"
+                        "error": "Could not parse structured response",
                     }
-                    
+
         except Exception as e:
             return {"error": f"Failed to generate cheat sheet: {str(e)}"}
-    
-    def generate_flashcards(self, text: str, card_count: int = 10, difficulty: str = "mixed") -> Dict[str, Any]:
+
+    def generate_flashcards(
+        self, text: str, card_count: int = 10, difficulty: str = "mixed"
+    ) -> dict[str, Any]:
         """
         Generate interactive flashcards for active study.
-        
+
         Args:
             text: Input text to create flashcards from
             card_count: Number of flashcards to generate
             difficulty: Difficulty level ("basic", "intermediate", "advanced", "mixed")
-            
+
         Returns:
             Dict containing flashcard data
         """
-        
+
         difficulty_instructions = {
             "basic": """
             Create basic flashcards focusing on:
@@ -303,11 +309,11 @@ class StudyMaterialsGenerator:
             - 30% basic (definitions, facts)
             - 40% intermediate (concepts, applications) 
             - 30% advanced (analysis, synthesis)
-            """
+            """,
         }
-        
+
         instruction = difficulty_instructions.get(difficulty, difficulty_instructions["mixed"])
-        
+
         prompt = f"""
         Create exactly {card_count} study flashcards from the following content.
         
@@ -343,17 +349,17 @@ class StudyMaterialsGenerator:
         Content:
         {text}
         """
-        
+
         try:
             response_content = self._make_api_call(prompt)
-            
+
             # Try to parse JSON response
             try:
                 flashcard_data = json.loads(response_content)
                 return flashcard_data
             except json.JSONDecodeError:
                 # Fallback: extract JSON from response
-                json_match = re.search(r'\{.*\}', response_content, re.DOTALL)
+                json_match = re.search(r"\{.*\}", response_content, re.DOTALL)
                 if json_match:
                     flashcard_data = json.loads(json_match.group())
                     return flashcard_data
@@ -364,34 +370,36 @@ class StudyMaterialsGenerator:
                             {
                                 "id": 1,
                                 "front": "Study the content",
-                                "back": response_content[:500] + "..." if len(response_content) > 500 else response_content,
+                                "back": response_content[:500] + "..."
+                                if len(response_content) > 500
+                                else response_content,
                                 "hint": "",
                                 "difficulty": "basic",
-                                "category": "General"
+                                "category": "General",
                             }
                         ],
                         "total_cards": 1,
                         "difficulty_distribution": {"basic": 1, "intermediate": 0, "advanced": 0},
                         "categories": ["General"],
                         "study_tips": [],
-                        "error": "Could not parse structured response"
+                        "error": "Could not parse structured response",
                     }
-                    
+
         except Exception as e:
             return {"error": f"Failed to generate flashcards: {str(e)}"}
-    
-    def generate_study_outline(self, text: str, outline_depth: str = "detailed") -> Dict[str, Any]:
+
+    def generate_study_outline(self, text: str, outline_depth: str = "detailed") -> dict[str, Any]:
         """
         Generate a structured study outline.
-        
+
         Args:
             text: Input text to create outline from
             outline_depth: Depth level ("overview", "detailed", "comprehensive")
-            
+
         Returns:
             Dict containing outline structure and metadata
         """
-        
+
         depth_instructions = {
             "overview": """
             Create a high-level overview outline:
@@ -411,11 +419,11 @@ class StudyMaterialsGenerator:
             - 4-5 levels of detail
             - Include examples, formulas, and specifics
             - Cross-references and connections
-            """
+            """,
         }
-        
+
         instruction = depth_instructions.get(outline_depth, depth_instructions["detailed"])
-        
+
         prompt = f"""
         Create a structured study outline from the following content.
         
@@ -457,17 +465,17 @@ class StudyMaterialsGenerator:
         Content:
         {text}
         """
-        
+
         try:
             response_content = self._make_api_call(prompt)
-            
+
             # Try to parse JSON response
             try:
                 outline_data = json.loads(response_content)
                 return outline_data
             except json.JSONDecodeError:
                 # Fallback: extract JSON from response or create simple structure
-                json_match = re.search(r'\{.*\}', response_content, re.DOTALL)
+                json_match = re.search(r"\{.*\}", response_content, re.DOTALL)
                 if json_match:
                     outline_data = json.loads(json_match.group())
                     return outline_data
@@ -483,10 +491,12 @@ class StudyMaterialsGenerator:
                                     {
                                         "level": 2,
                                         "marker": "A",
-                                        "text": response_content[:200] + "..." if len(response_content) > 200 else response_content,
-                                        "children": []
+                                        "text": response_content[:200] + "..."
+                                        if len(response_content) > 200
+                                        else response_content,
+                                        "children": [],
                                     }
-                                ]
+                                ],
                             }
                         ],
                         "total_sections": 1,
@@ -494,27 +504,27 @@ class StudyMaterialsGenerator:
                         "study_sequence": ["Content Review"],
                         "time_estimates": {
                             "total_study_time": "1-2 hours",
-                            "per_section": ["1-2 hours"]
+                            "per_section": ["1-2 hours"],
                         },
                         "outline_depth": outline_depth,
-                        "error": "Could not parse structured response"
+                        "error": "Could not parse structured response",
                     }
-                    
+
         except Exception as e:
             return {"error": f"Failed to generate outline: {str(e)}"}
-    
-    def generate_key_terms(self, text: str, term_count: int = 15) -> Dict[str, Any]:
+
+    def generate_key_terms(self, text: str, term_count: int = 15) -> dict[str, Any]:
         """
         Extract and define key terms from the content.
-        
+
         Args:
             text: Input text to extract terms from
             term_count: Number of key terms to extract
-            
+
         Returns:
             Dict containing key terms and definitions
         """
-        
+
         prompt = f"""
         Extract the {term_count} most important key terms and concepts from the following content.
         
@@ -553,17 +563,17 @@ class StudyMaterialsGenerator:
         Content:
         {text}
         """
-        
+
         try:
             response_content = self._make_api_call(prompt)
-            
+
             # Try to parse JSON response
             try:
                 terms_data = json.loads(response_content)
                 return terms_data
             except json.JSONDecodeError:
                 # Fallback: extract JSON from response
-                json_match = re.search(r'\{.*\}', response_content, re.DOTALL)
+                json_match = re.search(r"\{.*\}", response_content, re.DOTALL)
                 if json_match:
                     terms_data = json.loads(json_match.group())
                     return terms_data
@@ -573,52 +583,54 @@ class StudyMaterialsGenerator:
                         "key_terms": [
                             {
                                 "term": "Key Concepts",
-                                "definition": response_content[:300] + "..." if len(response_content) > 300 else response_content,
+                                "definition": response_content[:300] + "..."
+                                if len(response_content) > 300
+                                else response_content,
                                 "context": "General content",
                                 "related_terms": [],
-                                "importance": "high"
+                                "importance": "high",
                             }
                         ],
                         "total_terms": 1,
                         "categories": [{"category": "General", "terms": ["Key Concepts"]}],
                         "study_suggestions": ["Review the extracted content"],
-                        "error": "Could not parse structured response"
+                        "error": "Could not parse structured response",
                     }
-                    
+
         except Exception as e:
             return {"error": f"Failed to generate key terms: {str(e)}"}
-    
-    def generate_study_guide(self, text: str, guide_type: str = "comprehensive") -> Dict[str, Any]:
+
+    def generate_study_guide(self, text: str, guide_type: str = "comprehensive") -> dict[str, Any]:
         """
         Generate a complete study guide combining multiple study materials.
-        
+
         Args:
             text: Input text to create study guide from
             guide_type: Type of guide ("comprehensive", "exam_prep", "quick_review")
-            
+
         Returns:
             Dict containing complete study guide
         """
-        
+
         # Generate different components based on guide type
         if guide_type == "comprehensive":
             summary = self.generate_comprehensive_summary(text, "detailed")
             cheat_sheet = self.generate_cheat_sheet(text, "comprehensive")
             flashcards = self.generate_flashcards(text, 15, "mixed")
             key_terms = self.generate_key_terms(text, 20)
-            
+
         elif guide_type == "exam_prep":
             summary = self.generate_comprehensive_summary(text, "concise")
             cheat_sheet = self.generate_cheat_sheet(text, "quick_ref")
             flashcards = self.generate_flashcards(text, 20, "mixed")
             key_terms = self.generate_key_terms(text, 25)
-            
+
         else:  # quick_review
             summary = self.generate_comprehensive_summary(text, "bullet_points")
             cheat_sheet = self.generate_cheat_sheet(text, "definitions")
             flashcards = self.generate_flashcards(text, 10, "basic")
             key_terms = self.generate_key_terms(text, 10)
-        
+
         # Combine all components
         study_guide = {
             "title": f"Study Guide - {guide_type.title()}",
@@ -628,32 +640,36 @@ class StudyMaterialsGenerator:
                 "summary": summary,
                 "cheat_sheet": cheat_sheet,
                 "flashcards": flashcards,
-                "key_terms": key_terms
+                "key_terms": key_terms,
             },
             "study_plan": self._generate_study_plan(guide_type),
-            "errors": []
+            "errors": [],
         }
-        
+
         # Collect any errors from components
         for component_name, component_data in study_guide["components"].items():
             if isinstance(component_data, dict) and "error" in component_data:
                 study_guide["errors"].append(f"{component_name}: {component_data['error']}")
-        
+
         return study_guide
-    
-    def _generate_study_plan(self, guide_type: str) -> Dict[str, Any]:
+
+    def _generate_study_plan(self, guide_type: str) -> dict[str, Any]:
         """Generate a suggested study plan based on guide type."""
-        
+
         plans = {
             "comprehensive": {
                 "total_time": "4-6 hours",
                 "sessions": [
                     {"session": 1, "focus": "Read summary and outline", "time": "45-60 min"},
-                    {"session": 2, "focus": "Review cheat sheet and key terms", "time": "30-45 min"},
+                    {
+                        "session": 2,
+                        "focus": "Review cheat sheet and key terms",
+                        "time": "30-45 min",
+                    },
                     {"session": 3, "focus": "Practice with flashcards", "time": "45-60 min"},
                     {"session": 4, "focus": "Review and self-test", "time": "60-90 min"},
-                    {"session": 5, "focus": "Final review before exam", "time": "30-45 min"}
-                ]
+                    {"session": 5, "focus": "Final review before exam", "time": "30-45 min"},
+                ],
             },
             "exam_prep": {
                 "total_time": "6-8 hours",
@@ -661,10 +677,14 @@ class StudyMaterialsGenerator:
                     {"session": 1, "focus": "Study outline thoroughly", "time": "90-120 min"},
                     {"session": 2, "focus": "Memorize key terms", "time": "45-60 min"},
                     {"session": 3, "focus": "Intensive flashcard practice", "time": "60-90 min"},
-                    {"session": 4, "focus": "Use cheat sheet for quick review", "time": "30-45 min"},
+                    {
+                        "session": 4,
+                        "focus": "Use cheat sheet for quick review",
+                        "time": "30-45 min",
+                    },
                     {"session": 5, "focus": "Comprehensive review", "time": "60-90 min"},
-                    {"session": 6, "focus": "Final preparation", "time": "30-45 min"}
-                ]
+                    {"session": 6, "focus": "Final preparation", "time": "30-45 min"},
+                ],
             },
             "quick_review": {
                 "total_time": "2-3 hours",
@@ -672,9 +692,9 @@ class StudyMaterialsGenerator:
                     {"session": 1, "focus": "Read bullet point summary", "time": "30-45 min"},
                     {"session": 2, "focus": "Review key definitions", "time": "30-45 min"},
                     {"session": 3, "focus": "Practice basic flashcards", "time": "45-60 min"},
-                    {"session": 4, "focus": "Final overview", "time": "30-45 min"}
-                ]
-            }
+                    {"session": 4, "focus": "Final overview", "time": "30-45 min"},
+                ],
+            },
         }
-        
+
         return plans.get(guide_type, plans["comprehensive"])
