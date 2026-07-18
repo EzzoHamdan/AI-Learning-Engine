@@ -13,9 +13,10 @@ from pptx import Presentation
 load_dotenv()
 
 # Import custom modules
-from learning_engine.ai_client_factory import AIClientFactory
+from learning_engine.ai_client_factory import get_client, resolve_provider
 from learning_engine.learning_analytics import analytics
-from learning_engine.local_ai_client import is_ollama_running, list_available_models
+from learning_engine.llm.client import ProviderUnavailable
+from learning_engine.llm.providers import list_ollama_models
 from learning_engine.logger import setup_logging
 from learning_engine.session_manager import SessionManager
 from learning_engine.settings import (
@@ -29,6 +30,10 @@ from learning_engine.settings import (
 )
 from learning_engine.study_materials_generator import StudyMaterialsGenerator
 
+# Temperatures kept per call type (Phase 7 moves these into settings).
+QUIZ_TEMPERATURE = 0.7
+SUMMARY_TEMPERATURE = 0.5
+
 # Setup logging
 logger = setup_logging()
 
@@ -39,12 +44,25 @@ openai_config = OpenAIConfig()
 google_ai_config = GoogleAIConfig()
 local_ai_config = LocalAIConfig()
 
-# Initialize session manager and AI client factory
+# Initialize session manager
 session_manager = SessionManager()
-ai_factory = AIClientFactory(session_manager)
+
+
+def resolve_active_client():
+    """Resolve the selected provider to (client, cfg, display_name, ok, error).
+
+    On failure returns a disabled state with the reason instead of a mock
+    client, and never switches providers silently.
+    """
+    try:
+        cfg = resolve_provider(session_manager)
+        return get_client(cfg), cfg, cfg.display_name, True, None
+    except ProviderUnavailable as exc:
+        return None, None, st.session_state.ai_provider, False, str(exc)
+
 
 # Get AI client with graceful error handling
-client, ai_provider, client_successful = ai_factory.get_working_client()
+client, provider_cfg, ai_provider, client_successful, provider_error = resolve_active_client()
 
 # Debug: Print configuration values
 if app_config.DEBUG_MODE:
@@ -59,9 +77,9 @@ if client_successful:
     if app_config.DEBUG_MODE:
         st.success(f"✅ Successfully initialized: {ai_provider}")
 else:
-    st.warning(f"⚠️ AI Provider Issue: {ai_provider}")
+    st.warning(f"⚠️ {ai_provider} unavailable: {provider_error}")
     st.info(
-        "💡 The app will continue to work. Please configure a working AI provider in the sidebar to generate quizzes."
+        "💡 Configure a working AI provider in the sidebar to generate quizzes and study materials."
     )
 
 
@@ -1233,7 +1251,7 @@ def generate_study_materials_content(final_text, material_type, local_vars):
 
 
 def main():
-    global client, ai_provider, client_successful
+    global client, provider_cfg, ai_provider, client_successful, provider_error
 
     # Main navigation
     st.sidebar.title("🎯 Navigation")
@@ -1289,9 +1307,10 @@ def main():
 
         # If provider changed, reinitialize client
         if selected_provider != st.session_state.ai_provider:
-            # Update global variables
             st.session_state.ai_provider = selected_provider
-            client, ai_provider, client_successful = ai_factory.get_working_client()
+            client, provider_cfg, ai_provider, client_successful, provider_error = (
+                resolve_active_client()
+            )
             st.rerun()
 
         # API Key Configuration
@@ -1436,68 +1455,60 @@ def main():
         if st.session_state.ai_provider == "Local AI (Ollama)":
             st.markdown("---")
             st.subheader("🏠 Local AI Status")
-            ollama_base_url = local_ai_config.BASE_URL.replace("/v1", "")
-            if is_ollama_running(ollama_base_url):
+            ollama_base_url = f"http://{local_ai_config.HOST}:{local_ai_config.PORT}"
+            available_models = list_ollama_models(ollama_base_url)
+            if available_models:
                 st.success("✅ Ollama server running")
-                available_models = list_available_models(ollama_base_url)
-                if available_models:
-                    # Initialize selected model in session state
-                    if "selected_local_model" not in st.session_state:
-                        # Default to current config model if available, otherwise first available
-                        default_model = (
-                            local_ai_config.MODEL_NAME
-                            if local_ai_config.MODEL_NAME in available_models
-                            else available_models[0]
-                        )
-                        st.session_state.selected_local_model = default_model
-
-                    # Model selector with performance info
-                    model_options = []
-                    for model in available_models:
-                        model_options.append(model)
-
-                    selected_model = st.selectbox(
-                        "🤖 Select Model:",
-                        model_options,
-                        index=model_options.index(st.session_state.selected_local_model)
-                        if st.session_state.selected_local_model in model_options
-                        else 0,
-                        key="model_selector",
-                        help="Choose which model to use for quiz generation. Larger models are more capable but slower.",
+                # Initialize selected model in session state
+                if "selected_local_model" not in st.session_state:
+                    # Default to config model if available, otherwise first available
+                    default_model = (
+                        local_ai_config.MODEL_NAME
+                        if local_ai_config.MODEL_NAME in available_models
+                        else available_models[0]
                     )
+                    st.session_state.selected_local_model = default_model
 
-                    # Update session state if model changed
-                    if selected_model != st.session_state.selected_local_model:
-                        st.session_state.selected_local_model = selected_model
-                        st.success(f"🔄 Switched to model: {selected_model}")
+                selected_model = st.selectbox(
+                    "🤖 Select Model:",
+                    available_models,
+                    index=available_models.index(st.session_state.selected_local_model)
+                    if st.session_state.selected_local_model in available_models
+                    else 0,
+                    key="model_selector",
+                    help="Choose which model to use for generation. Larger models are more capable but slower.",
+                )
 
-                        # Show performance hint for selected model
-                        if ":2b" in selected_model:
-                            st.info("⚡ **Fast & Efficient** - Good for quick quiz generation")
-                        elif ":9b" in selected_model:
-                            st.info("⚖️ **Balanced** - Good mix of speed and quality")
-                        elif ":27b" in selected_model:
-                            st.info("🎯 **High Quality** - Better responses, requires more time")
-                        elif ":70b" in selected_model:
-                            st.info("🏆 **Premium Quality** - Best results, much slower")
+                # Update session state if model changed
+                if selected_model != st.session_state.selected_local_model:
+                    st.session_state.selected_local_model = selected_model
+                    st.success(f"🔄 Switched to model: {selected_model}")
 
-                        st.rerun()
+                    # Show performance hint for selected model
+                    if ":2b" in selected_model:
+                        st.info("⚡ **Fast & Efficient** - Good for quick quiz generation")
+                    elif ":9b" in selected_model:
+                        st.info("⚖️ **Balanced** - Good mix of speed and quality")
+                    elif ":27b" in selected_model:
+                        st.info("🎯 **High Quality** - Better responses, requires more time")
+                    elif ":70b" in selected_model:
+                        st.info("🏆 **Premium Quality** - Best results, much slower")
 
-                    # Show current model info
-                    st.info(f"🎯 **Active Model:** {st.session_state.selected_local_model}")
+                    st.rerun()
 
-                    # Show all available models in expander
-                    with st.expander(f"📦 All Available Models ({len(available_models)})"):
-                        for i, model in enumerate(available_models, 1):
-                            is_current = model == st.session_state.selected_local_model
-                            marker = "🔹 **" if is_current else "• "
-                            end_marker = "** (Active)" if is_current else ""
-                            st.write(f"{marker}{model}{end_marker}")
-                else:
-                    st.warning("No models found. Run `ollama pull gemma2:2b`")
+                # Show current model info
+                st.info(f"🎯 **Active Model:** {st.session_state.selected_local_model}")
+
+                # Show all available models in expander
+                with st.expander(f"📦 All Available Models ({len(available_models)})"):
+                    for model in available_models:
+                        is_current = model == st.session_state.selected_local_model
+                        marker = "🔹 **" if is_current else "• "
+                        end_marker = "** (Active)" if is_current else ""
+                        st.write(f"{marker}{model}{end_marker}")
             else:
-                st.error("❌ Ollama server not running")
-                st.code("ollama serve")
+                st.error("❌ Ollama server not running, or no models installed")
+                st.code("ollama serve\nollama pull gemma2:2b")
 
     if uploaded_file and not (
         st.session_state.quiz_generated or st.session_state.materials_generated

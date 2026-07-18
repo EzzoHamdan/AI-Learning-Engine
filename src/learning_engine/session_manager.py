@@ -116,20 +116,17 @@ class SessionManager:
             return False, "Unknown provider"
 
     def _check_ollama_availability(self) -> tuple[bool, str]:
-        """Check if Ollama server is running."""
-        try:
-            from learning_engine.local_ai_client import is_ollama_running, list_available_models
+        """Check whether the local Ollama server is running and has models."""
+        from learning_engine.llm.providers import Provider, ProviderConfig, health_check
 
-            if is_ollama_running("http://127.0.0.1:11434"):
-                models = list_available_models("http://127.0.0.1:11434")
-                if models:
-                    return True, f"Running with {len(models)} models"
-                else:
-                    return False, "Running but no models available"
-            else:
-                return False, "Server not running"
-        except Exception as e:
-            return False, f"Connection error: {str(e)}"
+        cfg = ProviderConfig(
+            provider=Provider.OLLAMA,
+            base_url="http://127.0.0.1:11434",
+            api_key="ollama",
+            chat_model="",
+            scoring_model="",
+        )
+        return health_check(cfg)
 
     def update_provider_status(self):
         """Update status of all providers."""
