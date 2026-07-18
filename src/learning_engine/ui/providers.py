@@ -1,13 +1,18 @@
 """Resolve the selected provider to a validated config + a cached OpenAI client.
 
-Replaces the old MockClient/fallback factory. On failure this raises
-ProviderUnavailable instead of returning a fake "successful" client, and it
-never silently switches providers — the UI decides what to show.
+Moved from learning_engine.ai_client_factory: resolution reads Streamlit
+session state and caches with st.cache_resource, so it belongs to the UI
+layer (rule R1). On failure it raises ProviderUnavailable instead of
+returning a fake "successful" client, and it never switches providers
+silently — the pages decide what to show.
 """
 
-from dataclasses import replace
+from __future__ import annotations
+
+from dataclasses import dataclass, replace
 
 import streamlit as st
+from openai import OpenAI
 
 from learning_engine.llm.client import ProviderUnavailable, make_client
 from learning_engine.llm.providers import (
@@ -18,15 +23,26 @@ from learning_engine.llm.providers import (
     list_ollama_models,
     provider_from_display,
 )
-from learning_engine.session_manager import SessionManager
 from learning_engine.settings import GoogleAIConfig, LocalAIConfig, OpenAIConfig
+from learning_engine.ui.session import SessionManager
+
+
+@dataclass(frozen=True)
+class ActiveProvider:
+    """The resolved provider for this rerun: a client when ok, a reason when not."""
+
+    client: OpenAI | None
+    cfg: ProviderConfig | None
+    display_name: str
+    ok: bool
+    error: str | None
 
 
 def build_provider_config(provider: Provider, session_manager: SessionManager) -> ProviderConfig:
     """Assemble a ProviderConfig from settings defaults + session keys/model."""
     if provider is Provider.OLLAMA:
         local = LocalAIConfig()
-        model = getattr(st.session_state, "selected_local_model", local.MODEL_NAME)
+        model = st.session_state.get("selected_local_model", local.MODEL_NAME)
         return ProviderConfig(
             provider=provider,
             base_url=f"http://{local.HOST}:{local.PORT}",  # /v1 appended in make_client
@@ -80,10 +96,23 @@ def resolve_provider(session_manager: SessionManager) -> ProviderConfig:
 
 
 @st.cache_resource
-def get_client(cfg: ProviderConfig):
+def get_client(cfg: ProviderConfig) -> OpenAI:
     """Return a cached OpenAI client for cfg (keyed on the frozen config).
 
     Caching means the client is built once per (provider, key, url) instead of
     on every Streamlit rerun.
     """
     return make_client(cfg)
+
+
+def resolve_active_provider(session_manager: SessionManager) -> ActiveProvider:
+    """Resolve the selection to an ActiveProvider bundle for this rerun.
+
+    On failure returns a disabled state with the reason instead of a mock
+    client, and never switches providers silently.
+    """
+    try:
+        cfg = resolve_provider(session_manager)
+        return ActiveProvider(get_client(cfg), cfg, cfg.display_name, True, None)
+    except ProviderUnavailable as exc:
+        return ActiveProvider(None, None, st.session_state.ai_provider, False, str(exc))

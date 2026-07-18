@@ -1,0 +1,544 @@
+"""Learning-analytics dashboard (rendering only; the math lives in analytics/metrics).
+
+Ported from the display half of the old learning_analytics.py God class.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+
+import pandas as pd
+import plotly.express as px
+import streamlit as st
+
+from learning_engine.analytics import metrics
+from learning_engine.ui import state
+from learning_engine.ui.tracking import AnalyticsTracker
+
+
+def render() -> None:
+    """Render the analytics dashboard page."""
+    tracker = state.tracker()
+
+    st.title("📊 Learning Analytics & Progress Tracking")
+    st.markdown("---")
+
+    _session_overview(tracker)
+
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(
+        [
+            "📈 Performance Analytics",
+            "🎯 Quiz Insights",
+            "📚 Study Materials",
+            "🚀 Progress Tracking",
+            "🔍 Detailed Analysis",
+        ]
+    )
+
+    with tab1:
+        _performance_analytics(tracker)
+    with tab2:
+        _quiz_insights(tracker)
+    with tab3:
+        _materials_analytics(tracker)
+    with tab4:
+        _progress_tracking(tracker)
+    with tab5:
+        _detailed_analysis(tracker)
+
+
+def _session_overview(tracker: AnalyticsTracker) -> None:
+    """Display current session overview."""
+    session_duration = datetime.now() - tracker.session_start_time
+    hours, remainder = divmod(session_duration.total_seconds(), 3600)
+    minutes, seconds = divmod(remainder, 60)
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        st.metric(
+            "Session Duration",
+            f"{int(hours):02d}:{int(minutes):02d}:{int(seconds):02d}",
+            help="Total time spent in current session",
+        )
+
+    with col2:
+        st.metric(
+            "Quizzes Completed",
+            tracker.quiz_analytics["total_quizzes"],
+            help="Number of quizzes completed this session",
+        )
+
+    with col3:
+        st.metric(
+            "Materials Generated",
+            tracker.materials_analytics["total_materials"],
+            help="Study materials created this session",
+        )
+
+    with col4:
+        avg_score = metrics.average_score(tracker.quiz_analytics["performance_over_time"])
+        st.metric(
+            "Average Score", f"{avg_score:.1f}%", help="Average quiz performance this session"
+        )
+
+
+def _performance_analytics(tracker: AnalyticsTracker) -> None:
+    """Display performance analytics charts and metrics."""
+    st.subheader("📈 Performance Analytics")
+
+    quiz_analytics = tracker.quiz_analytics
+    performance_data = quiz_analytics["performance_over_time"]
+
+    if not performance_data:
+        st.info("📝 Complete some quizzes to see performance analytics!")
+        return
+
+    # Performance over time chart
+    df_performance = pd.DataFrame(performance_data)
+    df_performance["quiz_number"] = range(1, len(df_performance) + 1)
+
+    fig_performance = px.line(
+        df_performance,
+        x="quiz_number",
+        y="score_percentage",
+        title="📊 Quiz Performance Over Time",
+        labels={"quiz_number": "Quiz Number", "score_percentage": "Score (%)"},
+        markers=True,
+    )
+    fig_performance.add_hline(
+        y=70, line_dash="dash", line_color="green", annotation_text="Target: 70%"
+    )
+    fig_performance.update_layout(
+        xaxis_title="Quiz Number", yaxis_title="Score Percentage (%)", showlegend=True
+    )
+    st.plotly_chart(fig_performance, width="stretch")
+
+    # Performance by difficulty / type
+    col1, col2 = st.columns(2)
+
+    with col1:
+        difficulty_data = quiz_analytics["difficulty_breakdown"]
+        if any(difficulty_data.values()):
+            fig_difficulty = px.pie(
+                values=list(difficulty_data.values()),
+                names=list(difficulty_data.keys()),
+                title="🎯 Quiz Difficulty Distribution",
+            )
+            st.plotly_chart(fig_difficulty, width="stretch")
+
+    with col2:
+        type_data = quiz_analytics["type_breakdown"]
+        if any(type_data.values()):
+            fig_types = px.pie(
+                values=list(type_data.values()),
+                names=list(type_data.keys()),
+                title="📝 Quiz Type Distribution",
+            )
+            st.plotly_chart(fig_types, width="stretch")
+
+    # Learning velocity analysis
+    velocity_data = metrics.calculate_learning_velocity(performance_data)
+
+    if velocity_data["trend"] != "insufficient_data":
+        st.subheader("🚀 Learning Velocity Analysis")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            trend_emoji = {"improving": "📈", "declining": "📉", "stable": "➡️"}
+            trend = velocity_data["trend"]
+            st.metric(
+                "Learning Trend",
+                f"{trend_emoji.get(trend, '➡️')} {trend.title()}",
+                help="Overall learning trend based on quiz performance",
+            )
+
+        with col2:
+            st.metric(
+                "Velocity",
+                f"{velocity_data['velocity']:.2f}%/quiz",
+                help="Rate of improvement per quiz",
+            )
+
+        with col3:
+            confidence = velocity_data.get("confidence", 0) * 100
+            st.metric(
+                "Confidence",
+                f"{confidence:.0f}%",
+                help="Statistical confidence in the trend analysis",
+            )
+
+
+def _quiz_insights(tracker: AnalyticsTracker) -> None:
+    """Display detailed quiz insights and patterns."""
+    st.subheader("🎯 Quiz Insights & Patterns")
+
+    detailed_results = tracker.quiz_analytics["detailed_results"]
+
+    if not detailed_results:
+        st.info("📝 Complete some quizzes to see detailed insights!")
+        return
+
+    # Strength and weakness analysis
+    analysis = metrics.strength_weakness_analysis(detailed_results)
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.subheader("💪 Strengths")
+        if analysis["strengths"]:
+            for strength in analysis["strengths"]:
+                st.success(f"✅ {strength}")
+        else:
+            st.info("Complete more quizzes to identify strengths")
+
+    with col2:
+        st.subheader("🎯 Areas for Improvement")
+        if analysis["weaknesses"]:
+            for weakness in analysis["weaknesses"]:
+                st.warning(f"⚠️ {weakness}")
+        else:
+            st.success("No major weaknesses identified!")
+
+    # Recommendations
+    if analysis["recommendations"]:
+        st.subheader("💡 Personalized Recommendations")
+        for i, recommendation in enumerate(analysis["recommendations"], 1):
+            st.info(f"{i}. {recommendation}")
+
+    # Performance breakdown charts
+    if analysis["type_performance"]:
+        st.subheader("📊 Performance by Question Type")
+
+        type_df = pd.DataFrame(
+            [{"Type": k, "Performance": v} for k, v in analysis["type_performance"].items()]
+        )
+
+        fig_type_performance = px.bar(
+            type_df,
+            x="Type",
+            y="Performance",
+            title="Performance by Question Type",
+            color="Performance",
+            color_continuous_scale="RdYlGn",
+        )
+        fig_type_performance.add_hline(y=70, line_dash="dash", annotation_text="Target: 70%")
+        st.plotly_chart(fig_type_performance, width="stretch")
+
+    # Recent quiz analysis
+    st.subheader("📋 Recent Quiz Performance")
+
+    recent_quiz = detailed_results[-1]
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Overall Score", f"{recent_quiz['overall_score']:.1f}%")
+
+    with col2:
+        correct_count = sum(1 for q in recent_quiz["questions"] if q["correct"])
+        total_count = len(recent_quiz["questions"])
+        st.metric("Questions Correct", f"{correct_count}/{total_count}")
+
+    with col3:
+        st.metric("Difficulty Level", recent_quiz["difficulty"])
+
+    # Question-by-question breakdown
+    with st.expander("🔍 Question-by-Question Analysis"):
+        for i, question in enumerate(recent_quiz["questions"], 1):
+            status_emoji = "✅" if question["correct"] else "❌"
+            difficulty_emoji = {"high": "🔴", "medium": "🟡", "basic": "🟢"}
+
+            st.write(
+                f"{status_emoji} **Q{i}** ({question['question_type']}) "
+                f"{difficulty_emoji.get(question['difficulty_tag'], '⚪')} "
+                f"{question['difficulty_tag'].title()} difficulty"
+            )
+
+
+def _materials_analytics(tracker: AnalyticsTracker) -> None:
+    """Display study materials analytics."""
+    st.subheader("📚 Study Materials Analytics")
+
+    materials_analytics = tracker.materials_analytics
+
+    if materials_analytics["total_materials"] == 0:
+        st.info("📚 Generate some study materials to see analytics!")
+        return
+
+    # Materials overview
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.metric("Total Materials", materials_analytics["total_materials"])
+
+    with col2:
+        st.metric("Unique Types", len(materials_analytics["material_types"]))
+
+    with col3:
+        generation_times = materials_analytics["generation_times"]
+        successful = [gt for gt in generation_times if gt["success"]]
+        if successful:
+            avg_time = sum(gt["generation_time"] for gt in successful) / len(successful)
+            st.metric("Avg Generation Time", f"{avg_time:.1f}s")
+
+    # Materials distribution
+    if materials_analytics["material_types"]:
+        fig_materials = px.bar(
+            x=list(materials_analytics["material_types"].keys()),
+            y=list(materials_analytics["material_types"].values()),
+            title="📊 Generated Materials by Type",
+            labels={"x": "Material Type", "y": "Count"},
+        )
+        st.plotly_chart(fig_materials, width="stretch")
+
+    # Generation success rate
+    if generation_times:
+        success_rate = len(successful) / len(generation_times) * 100
+        st.metric("Generation Success Rate", f"{success_rate:.1f}%")
+
+        # Generation time trend
+        df_generation = pd.DataFrame(generation_times)
+        df_generation["attempt_number"] = range(1, len(df_generation) + 1)
+
+        fig_generation_time = px.scatter(
+            df_generation,
+            x="attempt_number",
+            y="generation_time",
+            color="success",
+            title="📈 Material Generation Time Trend",
+            labels={"attempt_number": "Attempt Number", "generation_time": "Time (seconds)"},
+        )
+        st.plotly_chart(fig_generation_time, width="stretch")
+
+
+def _progress_tracking(tracker: AnalyticsTracker) -> None:
+    """Display progress tracking and goal setting."""
+    st.subheader("🚀 Progress Tracking & Goals")
+
+    # Learning goals section
+    st.subheader("🎯 Learning Goals")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        target_score = st.slider(
+            "Target Average Score (%)",
+            min_value=50,
+            max_value=100,
+            value=80,
+            help="Set your target average quiz score",
+        )
+
+    with col2:
+        target_quizzes = st.slider(
+            "Quiz Goal (per session)",
+            min_value=1,
+            max_value=20,
+            value=5,
+            help="Set your target number of quizzes per session",
+        )
+
+    # Progress towards goals
+    quiz_analytics = tracker.quiz_analytics
+    current_avg = metrics.average_score(quiz_analytics["performance_over_time"])
+    current_quizzes = quiz_analytics["total_quizzes"]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        score_progress = min(current_avg / target_score * 100, 100)
+        st.metric(
+            "Score Goal Progress",
+            f"{current_avg:.1f}% / {target_score}%",
+            delta=f"{score_progress:.1f}% complete",
+        )
+        st.progress(score_progress / 100)
+
+    with col2:
+        quiz_progress = min(current_quizzes / target_quizzes * 100, 100)
+        st.metric(
+            "Quiz Goal Progress",
+            f"{current_quizzes} / {target_quizzes}",
+            delta=f"{quiz_progress:.1f}% complete",
+        )
+        st.progress(quiz_progress / 100)
+
+    # Learning streaks
+    st.subheader("🔥 Learning Streaks")
+
+    learning_history = tracker.learning_history
+    if learning_history:
+        unique_days = {entry["timestamp"].date() for entry in learning_history}
+        current_streak = metrics.calculate_current_streak(unique_days, datetime.now().date())
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric("Current Streak", f"{current_streak} days")
+
+        with col2:
+            st.metric("Total Active Days", len(unique_days))
+
+        with col3:
+            longest_streak = metrics.calculate_longest_streak(unique_days)
+            st.metric("Longest Streak", f"{longest_streak} days")
+
+    # Engagement metrics
+    st.subheader("📊 Engagement Metrics")
+
+    engagement = tracker.engagement_metrics
+
+    if engagement["feature_usage"]:
+        fig_engagement = px.bar(
+            x=list(engagement["feature_usage"].keys()),
+            y=list(engagement["feature_usage"].values()),
+            title="🎯 Feature Usage Distribution",
+            labels={"x": "Feature", "y": "Usage Count"},
+        )
+        st.plotly_chart(fig_engagement, width="stretch")
+
+    # AI Provider usage
+    if engagement["ai_provider_usage"]:
+        fig_providers = px.pie(
+            values=list(engagement["ai_provider_usage"].values()),
+            names=list(engagement["ai_provider_usage"].keys()),
+            title="🤖 AI Provider Usage Distribution",
+        )
+        st.plotly_chart(fig_providers, width="stretch")
+
+
+def _detailed_analysis(tracker: AnalyticsTracker) -> None:
+    """Display detailed analysis and insights."""
+    st.subheader("🔍 Detailed Analysis")
+
+    # Session timeline
+    st.subheader("⏱️ Session Timeline")
+
+    learning_history = tracker.learning_history
+
+    if learning_history:
+        timeline_df = pd.DataFrame(
+            [
+                {
+                    "Time": entry["timestamp"].strftime("%H:%M:%S"),
+                    "Activity": entry["type"].replace("_", " ").title(),
+                    "Details": _format_activity_details(entry),
+                }
+                for entry in learning_history
+            ]
+        )
+        st.dataframe(timeline_df, width="stretch")
+    else:
+        st.info("No activities recorded yet in this session.")
+
+    # Detailed quiz statistics
+    detailed_results = tracker.quiz_analytics["detailed_results"]
+    if detailed_results:
+        st.subheader("📊 Detailed Quiz Statistics")
+
+        with st.expander("📈 All Quiz Results"):
+            for i, result in enumerate(detailed_results, 1):
+                st.write(f"**Quiz {i}** - {result['timestamp'].strftime('%H:%M:%S')}")
+                st.write(f"- Type: {result['quiz_type']}")
+                st.write(f"- Difficulty: {result['difficulty']}")
+                st.write(f"- Score: {result['overall_score']:.1f}%")
+                st.write(f"- Questions: {len(result['questions'])}")
+                st.write("---")
+
+    # Export data section
+    st.subheader("💾 Data Export")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        if st.button("📊 Export Quiz Data"):
+            export_data = {
+                "session_info": {
+                    "start_time": tracker.session_start_time.isoformat(),
+                    "export_time": datetime.now().isoformat(),
+                },
+                "quiz_analytics": tracker.quiz_analytics,
+                "materials_analytics": tracker.materials_analytics,
+                "engagement_metrics": tracker.engagement_metrics,
+            }
+
+            # Convert datetime objects to strings for JSON serialization
+            export_json = _convert_datetimes(export_data)
+
+            st.download_button(
+                label="📥 Download JSON",
+                data=json.dumps(export_json, indent=2),
+                file_name=f"learning_analytics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json",
+            )
+
+    with col2:
+        if st.button("📈 Generate Report"):
+            _summary_report(tracker)
+
+
+def _format_activity_details(entry: dict) -> str:
+    """Format activity details for timeline display."""
+    activity_type = entry["type"]
+    data = entry["data"]
+
+    if activity_type == "quiz_completion":
+        return (
+            f"Score: {data.get('score', 0):.1f}% | {data.get('type', 'Unknown')} | "
+            f"{data.get('difficulty', 'Unknown')}"
+        )
+    elif activity_type == "materials_generation":
+        return f"Type: {data.get('type', 'Unknown')} | Success: {data.get('success', False)}"
+    else:
+        return str(data)
+
+
+def _convert_datetimes(obj):
+    """Prepare data for JSON export by converting datetime objects."""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    elif isinstance(obj, dict):
+        return {k: _convert_datetimes(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_convert_datetimes(item) for item in obj]
+    else:
+        return obj
+
+
+def _summary_report(tracker: AnalyticsTracker) -> None:
+    """Generate a comprehensive summary report."""
+    st.subheader("📋 Learning Session Summary Report")
+
+    session_duration = datetime.now() - tracker.session_start_time
+    quiz_analytics = tracker.quiz_analytics
+    materials_analytics = tracker.materials_analytics
+
+    # Session overview
+    st.write("**📊 Session Overview:**")
+    st.write(f"- Duration: {session_duration}")
+    st.write(f"- Quizzes Completed: {quiz_analytics['total_quizzes']}")
+    st.write(f"- Total Questions Answered: {quiz_analytics['total_questions']}")
+    st.write(f"- Materials Generated: {materials_analytics['total_materials']}")
+
+    # Performance summary
+    performance = quiz_analytics["performance_over_time"]
+    if performance:
+        scores = [entry["score_percentage"] for entry in performance]
+        st.write(f"- Average Score: {sum(scores) / len(scores):.1f}%")
+        st.write(f"- Best Score: {max(scores):.1f}%")
+        st.write(f"- Score Range: {max(scores) - min(scores):.1f}%")
+
+    # Learning insights
+    velocity_data = metrics.calculate_learning_velocity(performance)
+    if velocity_data["trend"] != "insufficient_data":
+        st.write(f"- Learning Trend: {velocity_data['trend'].title()}")
+        st.write(f"- Improvement Rate: {velocity_data['velocity']:.2f}% per quiz")
+
+    # Recommendations
+    analysis = metrics.strength_weakness_analysis(quiz_analytics["detailed_results"])
+    if analysis["recommendations"]:
+        st.write("**💡 Key Recommendations:**")
+        for rec in analysis["recommendations"][:3]:  # Top 3 recommendations
+            st.write(f"- {rec}")

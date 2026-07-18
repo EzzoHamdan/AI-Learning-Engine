@@ -1,5 +1,8 @@
 """Session state management for dynamic configuration and API keys.
 
+Moved from learning_engine.session_manager: this class renders sidebar widgets
+and owns Streamlit session keys, so it lives in the UI layer (rule R1).
+
 API keys are sourced from environment variables, Streamlit secrets (when
 deployed), or entered in the sidebar for the current session. There is no
 on-disk key store: the old "save API keys locally" feature wrote plaintext

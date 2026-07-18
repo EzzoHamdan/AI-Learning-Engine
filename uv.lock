@@ -531,7 +531,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.0" },
     { name = "python-pptx", specifier = ">=1.0" },
     { name = "requests", specifier = ">=2.32" },
-    { name = "streamlit", specifier = ">=1.40" },
+    { name = "streamlit", specifier = ">=1.49" },
 ]
 
 [package.metadata.requires-dev]
