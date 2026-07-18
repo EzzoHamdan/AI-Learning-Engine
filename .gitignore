@@ -173,3 +173,7 @@ IMPLEMENTATION_SUMMARY.md
 uploads/
 temp_files/
 cache/
+
+# Skill symlinks Streamlit creates into the virtualenv (not portable)
+.agents/
+.claude/skills/developing-with-streamlit
