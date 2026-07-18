@@ -53,15 +53,14 @@ class SessionManager:
 
     def _get_default_provider(self) -> str:
         """Determine default AI provider based on availability."""
-        # Check environment variables first
+        # Honor the explicit USE_* flags from .env, then fall back to a key.
         if os.getenv("USE_LOCAL_AI", "false").lower() == "true":
             return "Local AI (Ollama)"
-        elif os.getenv("USE_GOOGLE_AI", "false").lower() == "true":
+        if os.getenv("USE_GOOGLE_AI", "false").lower() == "true":
             return "Google AI"
-        elif os.getenv("OPENAI_API_KEY"):
+        if os.getenv("USE_OPENAI", "false").lower() == "true" or os.getenv("OPENAI_API_KEY"):
             return "OpenAI"
-        else:
-            return "Local AI (Ollama)"  # Default fallback
+        return "Local AI (Ollama)"  # Default fallback
 
     def _load_saved_api_keys(self) -> dict[str, str]:
         """Load API keys from Streamlit secrets (when deployed) and environment."""
