@@ -1,5 +1,3 @@
-import json
-import re
 import time
 from datetime import datetime
 
@@ -15,7 +13,8 @@ load_dotenv()
 # Import custom modules
 from learning_engine.ai_client_factory import get_client, resolve_provider
 from learning_engine.learning_analytics import analytics
-from learning_engine.llm.client import ProviderUnavailable
+from learning_engine.generation import quiz as quiz_gen
+from learning_engine.llm.client import GenerationFailed, ProviderUnavailable
 from learning_engine.llm.providers import list_ollama_models
 from learning_engine.logger import setup_logging
 from learning_engine.session_manager import SessionManager
@@ -99,257 +98,55 @@ def extract_text_from_pptx(file):
     return "\n".join(text)
 
 
+def _mcq_letter(user_answer):
+    """Extract the chosen A/B/C/D letter from a selected option string."""
+    if user_answer and user_answer[0] in ("A", "B", "C", "D"):
+        return user_answer[0]
+    return ""
+
+
 def summarize_text(text):
-    # Check if we have a working client
+    """Return a condensed summary, or the original text if AI is unavailable."""
     if not client_successful:
         st.error("❌ No working AI provider available for text summarization.")
-        return text  # Return original text if no AI available
-
+        return text
     try:
-        response = client.chat.completions.create(
-            model=provider_cfg.chat_model,
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"Summarize the following text into key points:\n{text}",
-                }
-            ],
-            temperature=SUMMARY_TEMPERATURE,
-        )
-        return response.choices[0].message.content.strip()
+        return quiz_gen.summarize(client, provider_cfg, text)
     except Exception as e:
         st.error(f"❌ Error during text summarization: {str(e)}")
-        return text  # Return original text if summarization fails
+        return text  # Fall back to the original text if summarization fails
 
 
-def generate_quiz(text, quiz_type, num_questions=5, difficulty="Standard"):
-    # Check if we have a working client
-    if not client_successful:
-        return {
-            "error": "No working AI provider available. Please configure an AI provider in the sidebar."
-        }
-
-    difficulty_instructions = {
-        "Standard": """
-        Create university-level questions that test comprehension, analysis, and application of the material.
-        Questions should be straightforward but require good understanding of the content.
-        Focus on key concepts, definitions, and logical connections.
-        """,
-        "Advanced": """
-        Create advanced questions that require synthesis, evaluation, and critical thinking.
-        Include scenario-based questions and complex problem-solving.
-        Test ability to apply knowledge in new contexts.
-        Questions should be challenging but fair, suitable for graduate-level study.
-        """,
-        "Extreme": """
-        Create EXTREMELY challenging questions that require critical thinking, careful reading, and deep analysis.
-        Make questions manipulative and tricky - use subtle distinctions, edge cases, and nuanced interpretations.
-        Include questions that test ability to identify assumptions, logical fallacies, and hidden implications.
-        Use complex scenarios that require synthesis of multiple concepts. Create sophisticated answer choices where:
-        
-        - Some questions may have multiple technically correct options, but only ONE is the BEST/MOST COMPLETE answer
-        - Include "correct" vs "more correct" scenarios where students must choose the MOST accurate or comprehensive response
-        - Design questions where 2-3 options could be partially right, but one stands out as superior
-        
-        Make incorrect options very plausible and tempting.
-        Questions should be beyond university level - suitable for advanced professionals or doctoral students.
-        """,
-    }
-
-    # Get difficulty instruction or use Standard as fallback
-    difficulty_instruction = difficulty_instructions.get(
-        difficulty, difficulty_instructions["Standard"]
-    )
-
-    if quiz_type == "Mixed (MCQ + T/F)":
-        # For mixed quiz, create roughly half MCQ and half T/F
-        mcq_count = num_questions // 2
-        tf_count = num_questions - mcq_count
-
-        prompt = f"""
-Based on the following content, generate exactly {num_questions} questions:
-- {mcq_count} multiple choice questions with 4 options each
-- {tf_count} true or false questions
-
-DIFFICULTY LEVEL: {difficulty}
-{difficulty_instruction}
-
-Return the response in this exact JSON format:
-{{
-  "questions": [
-    {{
-      "question": "Question text here",
-      "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
-      "correct_answer": "A",
-      "explanation": "Explanation of why this is correct"
-    }},
-    {{
-      "question": "Question text here",
-      "options": ["True", "False"],
-      "correct_answer": "True",
-      "explanation": "Explanation of why this is correct"
-    }}
-  ]
-}}
-
-Content: {text}
-"""
-    elif quiz_type == "Multiple Choice":
-        prompt = f"""
-Based on the following content, generate exactly {num_questions} multiple choice questions with 4 options each.
-
-DIFFICULTY LEVEL: {difficulty}
-{difficulty_instruction}
-
-Return the response in this exact JSON format:
-{{
-  "questions": [
-    {{
-      "question": "Question text here",
-      "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
-      "correct_answer": "A",
-      "explanation": "Explanation of why this is correct"
-    }}
-  ]
-}}
-
-Content: {text}
-"""
-    else:  # True or False
-        prompt = f"""
-Based on the following content, generate exactly {num_questions} true or false questions.
-
-DIFFICULTY LEVEL: {difficulty}
-{difficulty_instruction}
-
-Return the response in this exact JSON format:
-{{
-  "questions": [
-    {{
-      "question": "Question text here",
-      "options": ["True", "False"],
-      "correct_answer": "True",
-      "explanation": "Explanation of why this is correct"
-    }}
-  ]
-}}
-
-Content: {text}
-"""
-
-    try:
-        response = client.chat.completions.create(
-            model=provider_cfg.chat_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=QUIZ_TEMPERATURE,
-        )
-
-        # Get the response content
-        content = response.choices[0].message.content.strip()
-
-        # Try to parse JSON directly first
-        try:
-            quiz_data = json.loads(content)
-            return quiz_data
-        except json.JSONDecodeError:
-            pass
-
-        # If direct parsing fails, try to extract JSON from markdown code blocks
-        # Look for ```json ... ``` blocks - improved regex to capture complete JSON
-        json_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", content, re.DOTALL)
-        if json_match:
-            try:
-                quiz_data = json.loads(json_match.group(1))
-                return quiz_data
-            except json.JSONDecodeError as e:
-                # Log the extraction attempt for debugging
-                logger.warning(f"Failed to parse extracted JSON from code block: {e}")
-                pass
-
-        # Alternative: Look for JSON between triple backticks without json specifier
-        json_match = re.search(r"```\s*(\{.*\})\s*```", content, re.DOTALL)
-        if json_match:
-            try:
-                quiz_data = json.loads(json_match.group(1))
-                return quiz_data
-            except json.JSONDecodeError:
-                pass
-
-        # Look for any JSON-like structure in the entire content
-        json_match = re.search(r"\{.*\}", content, re.DOTALL)
-        if json_match:
-            try:
-                quiz_data = json.loads(json_match.group())
-                return quiz_data
-            except json.JSONDecodeError:
-                pass
-
-        # If all JSON parsing fails, return error with more context for debugging
-        logger.error(f"Failed to parse quiz data. Full response: {content}")
-        return {
-            "error": f"Failed to parse quiz data. Response content: {content[:1000]}..."
-            if len(content) > 1000
-            else f"Failed to parse quiz data. Response content: {content}"
-        }
-
-    except Exception as e:
-        return {"error": f"Error processing response: {str(e)}"}
-
-
-def display_quiz(quiz_data):
-    """Display interactive quiz and handle user responses"""
-    if "error" in quiz_data:
-        st.error("Failed to generate quiz. Please try again.")
-        return
-
-    questions = quiz_data.get("questions", [])
+def display_quiz(quiz):
+    """Display the interactive quiz (a Quiz model) and capture user answers."""
+    questions = quiz.questions
     if not questions:
         st.error("No questions found in the quiz data.")
         return
 
-    # Initialize session state for quiz
-    if "current_question" not in st.session_state:
+    # Initialize / reset progress whenever a new quiz object is loaded
+    if "current_question" not in st.session_state or st.session_state.get("quiz_data") is not quiz:
         st.session_state.current_question = 0
         st.session_state.user_answers = {}
         st.session_state.quiz_completed = False
         st.session_state.quiz_finalized = False
         st.session_state.quiz_results = {}
-        st.session_state.quiz_data = quiz_data
-
-    # Reset quiz if new quiz is generated
-    if st.session_state.quiz_data != quiz_data:
-        st.session_state.current_question = 0
-        st.session_state.user_answers = {}
-        st.session_state.quiz_completed = False
-        st.session_state.quiz_finalized = False
-        st.session_state.quiz_results = {}
-        st.session_state.quiz_data = quiz_data
+        st.session_state.quiz_data = quiz
 
     total_questions = len(questions)
 
     if not st.session_state.quiz_completed:
-        # Display current question
         current_q = st.session_state.current_question
-        question_data = questions[current_q]
+        question = questions[current_q]
 
-        # Progress bar
-        progress = (current_q) / total_questions
-        st.progress(progress)
+        st.progress(current_q / total_questions)
         st.write(f"Question {current_q + 1} of {total_questions}")
+        st.subheader(f"Q{current_q + 1}: {question.question}")
 
-        # Display question
-        st.subheader(f"Q{current_q + 1}: {question_data['question']}")
-
-        # Check if this is an open-ended question
-        if question_data.get("type") == "open_ended":
-            # Display marking information
-            total_marks = question_data.get("total_marks", 0)
-            st.info(f"📝 **Open-ended Question** | Total Marks: {total_marks}")
-
-            # Show word count guidance
+        is_open_ended = question.type == "open_ended"
+        if is_open_ended:
+            st.info(f"📝 **Open-ended Question** | Total Marks: {question.total_marks}")
             st.caption("💡 Write a comprehensive answer. Quality matters more than quantity!")
-
-            # Text area for user input
             current_answer = st.session_state.user_answers.get(current_q, "")
             user_answer = st.text_area(
                 "Your Answer:",
@@ -358,37 +155,23 @@ def display_quiz(quiz_data):
                 key=f"open_q_{current_q}",
                 placeholder="Write your detailed answer here...",
             )
-
-            # Word count display
             if user_answer:
-                word_count = len(user_answer.split())
-                st.caption(f"Word count: {word_count}")
-
+                st.caption(f"Word count: {len(user_answer.split())}")
         else:
-            # Display options for MCQ/T/F questions
-            options = question_data["options"]
-            if len(options) == 2:  # True/False
-                user_answer = st.radio(
-                    "Select your answer:", options, key=f"q_{current_q}", index=None
-                )
-            else:  # Multiple choice
-                user_answer = st.radio(
-                    "Select your answer:", options, key=f"q_{current_q}", index=None
-                )
+            user_answer = st.radio(
+                "Select your answer:", question.options, key=f"q_{current_q}", index=None
+            )
 
-        col1, col2, col3 = st.columns([1, 1, 1])
-
+        col1, _col2, col3 = st.columns([1, 1, 1])
         with col1:
-            if current_q > 0:
-                if st.button("Previous"):
-                    st.session_state.current_question -= 1
-                    st.rerun()
-
+            if current_q > 0 and st.button("Previous"):
+                st.session_state.current_question -= 1
+                st.rerun()
         with col3:
-            # Check if user has provided an answer (different logic for open-ended vs MCQ/T/F)
-            has_answer = False
-            if question_data.get("type") == "open_ended":
-                has_answer = user_answer and user_answer.strip() and len(user_answer.split()) >= 5
+            if is_open_ended:
+                has_answer = bool(
+                    user_answer and user_answer.strip() and len(user_answer.split()) >= 5
+                )
             else:
                 has_answer = user_answer is not None
 
@@ -398,22 +181,17 @@ def display_quiz(quiz_data):
                         st.session_state.user_answers[current_q] = user_answer
                         st.session_state.current_question += 1
                         st.rerun()
-                else:
-                    if st.button("Submit Quiz"):
-                        st.session_state.user_answers[current_q] = user_answer
-                        st.session_state.quiz_completed = True
-                        st.rerun()
+                elif st.button("Submit Quiz"):
+                    st.session_state.user_answers[current_q] = user_answer
+                    st.session_state.quiz_completed = True
+                    st.rerun()
+            elif is_open_ended:
+                st.caption("⚠️ Please write at least 5 words to proceed")
             else:
-                # Show guidance for what's needed
-                if question_data.get("type") == "open_ended":
-                    st.caption("⚠️ Please write at least 5 words to proceed")
-                else:
-                    st.caption("⚠️ Please select an answer to proceed")
-
+                st.caption("⚠️ Please select an answer to proceed")
     else:
-        # Display results
-        # Score + record analytics exactly once on entry to the completed
-        # state, then render read-only (BUG-2).
+        # Score + record analytics exactly once on entry to the completed state,
+        # then render read-only (BUG-2).
         if not st.session_state.get("quiz_finalized"):
             finalize_quiz(questions, st.session_state.user_answers)
             st.session_state.quiz_finalized = True
@@ -421,110 +199,81 @@ def display_quiz(quiz_data):
 
 
 def finalize_quiz(questions, user_answers):
-    """Score the quiz and record analytics exactly once, on completion.
+    """Score the quiz and record analytics exactly once, on completion (BUG-2).
 
-    Streamlit reruns the whole script on every widget interaction, so scoring
-    (which calls the LLM — real cost and latency) and analytics tracking must
-    run only on the transition into the completed state, never in the render
-    path. Otherwise every rerun re-scores open-ended answers and double-counts
-    the quiz (BUG-2). Results are stored in st.session_state.quiz_results for
-    display_results() to read; the caller guards this with quiz_finalized.
+    `questions` are Pydantic models. Scoring (an LLM call) and analytics tracking
+    run only here, on the transition into the completed state; display_results()
+    only reads st.session_state.quiz_results.
     """
-    # Separate scoring for different question types
-    traditional_questions = []
-    open_ended_questions = []
+    traditional = [(i, q) for i, q in enumerate(questions) if q.type != "open_ended"]
+    open_ended = [(i, q) for i, q in enumerate(questions) if q.type == "open_ended"]
 
-    for i, question in enumerate(questions):
-        if question.get("type") == "open_ended":
-            open_ended_questions.append((i, question))
-        else:
-            traditional_questions.append((i, question))
-
-    # Calculate traditional question scores
+    # Score traditional questions
     traditional_correct = 0
-    total_traditional = len(traditional_questions)
-
-    for i, question in traditional_questions:
-        user_answer = user_answers.get(i, "")
-        correct_answer = question["correct_answer"]
-
-        # For multiple choice, extract letter from user answer
-        if len(question["options"]) > 2:
-            if user_answer and user_answer[0] in ["A", "B", "C", "D"]:
-                user_letter = user_answer[0]
-            else:
-                user_letter = ""
-        else:
-            user_letter = user_answer
-
-        if user_letter == correct_answer:
+    for i, q in traditional:
+        answer = user_answers.get(i, "")
+        user_letter = _mcq_letter(answer) if len(q.options) > 2 else answer
+        if user_letter == q.correct_answer:
             traditional_correct += 1
+    total_traditional = len(traditional)
 
-    # Score open-ended questions with AI (runs exactly once, not on every rerun)
-    open_ended_scores = []
-    total_open_ended_marks = 0
-    earned_open_ended_marks = 0
-
-    if open_ended_questions and client_successful:
+    # Score open-ended questions with AI (runs once, not on every rerun)
+    open_ended_scores = []  # list of (index, OpenEndedQuestion, ScoringResult)
+    total_open_ended_marks = 0.0
+    earned_open_ended_marks = 0.0
+    if open_ended and client_successful:
         st.info("🤖 Scoring open-ended questions with AI... This may take a moment.")
         progress_bar = st.progress(0)
-
-        from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
-
-        processor = OpenEndedQuestionProcessor(client, provider_cfg)
-
-        for idx, (i, question) in enumerate(open_ended_questions):
-            user_answer = user_answers.get(i, "")
-            scoring_result = processor.score_open_ended_answer(question, user_answer)
-            open_ended_scores.append((i, question, scoring_result))
-
-            total_open_ended_marks += scoring_result["max_score"]
-            earned_open_ended_marks += scoring_result["total_score"]
-
-            progress_bar.progress((idx + 1) / len(open_ended_questions))
-
+        for idx, (i, q) in enumerate(open_ended):
+            result = quiz_gen.score_open_ended(client, provider_cfg, q, user_answers.get(i, ""))
+            open_ended_scores.append((i, q, result))
+            total_open_ended_marks += result.max_score
+            earned_open_ended_marks += result.total_score
+            progress_bar.progress((idx + 1) / len(open_ended))
         progress_bar.empty()
 
-    # Calculate overall score
-    if total_traditional > 0 and total_open_ended_marks > 0:
-        traditional_percentage = (traditional_correct / total_traditional) * 100
-        open_ended_percentage = (earned_open_ended_marks / total_open_ended_marks) * 100
-        overall_percentage = (traditional_percentage + open_ended_percentage) / 2
-    elif total_open_ended_marks > 0:
-        overall_percentage = (earned_open_ended_marks / total_open_ended_marks) * 100
-    elif total_traditional > 0:
-        overall_percentage = (traditional_correct / total_traditional) * 100
+    # Overall percentage
+    if total_traditional and total_open_ended_marks:
+        overall = (
+            (traditional_correct / total_traditional) * 100
+            + (earned_open_ended_marks / total_open_ended_marks) * 100
+        ) / 2
+    elif total_open_ended_marks:
+        overall = (earned_open_ended_marks / total_open_ended_marks) * 100
+    elif total_traditional:
+        overall = (traditional_correct / total_traditional) * 100
     else:
-        overall_percentage = 0
+        overall = 0
 
-    performance_stats = {
+    st.session_state.quiz_results = {
         "traditional_correct": traditional_correct,
         "total_traditional": total_traditional,
         "open_ended_scores": open_ended_scores,
         "total_open_ended_marks": total_open_ended_marks,
         "earned_open_ended_marks": earned_open_ended_marks,
-        "overall_percentage": overall_percentage,
+        "overall_percentage": overall,
     }
 
-    # Track quiz completion in analytics — exactly once
+    # Analytics consumes plain dicts (kept untouched until the Phase 5/6 rewrite).
     analytics.track_quiz_completion(
-        quiz_data=st.session_state.quiz_data,
+        quiz_data=st.session_state.quiz_data.model_dump(),
         user_answers=user_answers,
-        performance_stats=performance_stats,
+        performance_stats={
+            "traditional_correct": traditional_correct,
+            "total_traditional": total_traditional,
+            "open_ended_scores": [
+                (i, q.model_dump(), r.model_dump()) for i, q, r in open_ended_scores
+            ],
+            "total_open_ended_marks": total_open_ended_marks,
+            "earned_open_ended_marks": earned_open_ended_marks,
+            "overall_percentage": overall,
+        },
     )
-
-    st.session_state.quiz_results = performance_stats
 
 
 def display_results(questions, user_answers):
-    """Render quiz results (read-only).
-
-    All scoring and analytics tracking happen once in finalize_quiz(); this
-    function only reads st.session_state.quiz_results and renders it, so reruns
-    triggered by widget interaction never re-score or double-count (BUG-2).
-    """
+    """Render quiz results (read-only; scoring/tracking happened in finalize_quiz)."""
     st.success("🎉 Quiz Completed!")
-
     difficulty = getattr(st.session_state, "quiz_difficulty", "Standard")
 
     results = st.session_state.get("quiz_results", {})
@@ -534,48 +283,41 @@ def display_results(questions, user_answers):
     total_open_ended_marks = results.get("total_open_ended_marks", 0)
     earned_open_ended_marks = results.get("earned_open_ended_marks", 0)
     overall_percentage = results.get("overall_percentage", 0)
+    emoji = DIFFICULTY_CONFIG[difficulty]["emoji"]
 
-    # Overall score display
-    if total_traditional > 0 and total_open_ended_marks > 0:
-        traditional_percentage = (traditional_correct / total_traditional) * 100
-        open_ended_percentage = (earned_open_ended_marks / total_open_ended_marks) * 100
-
-        st.subheader(
-            f"📊 Overall Score: {overall_percentage:.1f}% {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level"
-        )
-
+    if total_traditional and total_open_ended_marks:
+        trad_pct = (traditional_correct / total_traditional) * 100
+        oe_pct = (earned_open_ended_marks / total_open_ended_marks) * 100
+        st.subheader(f"📊 Overall Score: {overall_percentage:.1f}% {emoji} {difficulty} Level")
         col1, col2 = st.columns(2)
         with col1:
             st.metric(
                 "Traditional Questions",
-                f"{traditional_correct}/{total_traditional} ({traditional_percentage:.1f}%)",
+                f"{traditional_correct}/{total_traditional} ({trad_pct:.1f}%)",
             )
         with col2:
             st.metric(
                 "Open-ended Questions",
-                f"{earned_open_ended_marks:.1f}/{total_open_ended_marks} ({open_ended_percentage:.1f}%)",
+                f"{earned_open_ended_marks:.1f}/{total_open_ended_marks} ({oe_pct:.1f}%)",
             )
-
-    elif total_open_ended_marks > 0:
+    elif total_open_ended_marks:
         st.subheader(
-            f"📊 Overall Score: {earned_open_ended_marks:.1f}/{total_open_ended_marks} ({overall_percentage:.1f}%) {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level"
+            f"📊 Overall Score: {earned_open_ended_marks:.1f}/{total_open_ended_marks} "
+            f"({overall_percentage:.1f}%) {emoji} {difficulty} Level"
         )
-
     else:
         st.subheader(
-            f"📊 Overall Score: {traditional_correct}/{total_traditional} ({overall_percentage:.1f}%) {DIFFICULTY_CONFIG[difficulty]['emoji']} {difficulty} Level"
+            f"📊 Overall Score: {traditional_correct}/{total_traditional} "
+            f"({overall_percentage:.1f}%) {emoji} {difficulty} Level"
         )
 
     # Score interpretation
     scoring_config = SCORING_CONFIG.get(difficulty, SCORING_CONFIG["Standard"])
-
     for level, (threshold, message) in scoring_config.items():
         if level == "default":
             continue
         if overall_percentage >= threshold:
-            if level == "excellent":
-                st.success(message)
-            elif level == "good":
+            if level in ("excellent", "good"):
                 st.success(message)
             elif level == "fair":
                 st.info(message)
@@ -587,92 +329,61 @@ def display_results(questions, user_answers):
 
     # Detailed review
     st.subheader("📝 Detailed Review")
+    scores_by_index = {i: r for i, _q, r in open_ended_scores}
 
     for i, question in enumerate(questions):
         user_answer = user_answers.get(i, "No answer")
 
-        if question.get("type") == "open_ended":
-            # Find the scoring result for this question
-            scoring_result = None
-            for scored_i, scored_q, result in open_ended_scores:
-                if scored_i == i:
-                    scoring_result = result
-                    break
-
-            if scoring_result:
-                score_text = f"{scoring_result['total_score']:.1f}/{scoring_result['max_score']}"
-                percentage = scoring_result["percentage"]
-
-                with st.expander(f"Question {i + 1}: 📝 {score_text} ({percentage:.1f}%)"):
-                    st.write(f"**Question:** {question['question']}")
-                    st.write(f"**Your Answer:** {user_answer}")
-                    st.write(f"**Score:** {score_text} marks ({percentage:.1f}%)")
-
-                    if scoring_result.get("overall_feedback"):
-                        st.write(f"**Overall Feedback:** {scoring_result['overall_feedback']}")
-
-                    if scoring_result.get("criterion_scores"):
-                        st.write("**Detailed Breakdown:**")
-                        for criterion in scoring_result["criterion_scores"]:
-                            criterion_score = criterion["marks_awarded"]
-                            criterion_max = criterion["max_marks"]
-                            st.write(
-                                f"- {criterion['criterion']}: {criterion_score}/{criterion_max}"
-                            )
-                            if criterion.get("feedback"):
-                                st.write(f"  *{criterion['feedback']}*")
-
-                    if scoring_result.get("strengths"):
-                        st.success("**Strengths:** " + ", ".join(scoring_result["strengths"]))
-
-                    if scoring_result.get("improvements"):
-                        st.info(
-                            "**Areas for Improvement:** "
-                            + ", ".join(scoring_result["improvements"])
-                        )
-
-                    # Show model answer as plain markdown — Streamlit forbids
-                    # nesting an expander inside the outer question expander.
-                    st.markdown("**Model answer:**")
-                    st.info(question["model_answer"])
-
-        else:
-            # Traditional MCQ/T/F questions
-            correct_answer = question["correct_answer"]
-
-            # For multiple choice, extract letter from user answer
-            if len(question["options"]) > 2:
-                if user_answer and len(user_answer) > 0 and user_answer[0] in ["A", "B", "C", "D"]:
-                    user_letter = user_answer[0]
-                else:
-                    user_letter = ""
-            else:
-                user_letter = user_answer
-
-            is_correct = user_letter == correct_answer
-
-            with st.expander(f"Question {i + 1}: {'✅' if is_correct else '❌'}"):
-                st.write(f"**Question:** {question['question']}")
+        if question.type == "open_ended":
+            result = scores_by_index.get(i)
+            if not result:
+                continue
+            score_text = f"{result.total_score:.1f}/{result.max_score:.0f}"
+            badge = " · estimated" if result.estimated else ""
+            with st.expander(
+                f"Question {i + 1}: 📝 {score_text} ({result.percentage:.1f}%){badge}"
+            ):
+                st.write(f"**Question:** {question.question}")
                 st.write(f"**Your Answer:** {user_answer}")
-
-                # Find correct answer text
-                if len(question["options"]) > 2:
+                st.write(f"**Score:** {score_text} marks ({result.percentage:.1f}%)")
+                if result.estimated:
+                    st.warning(
+                        "⚠️ Estimated score (AI scoring unavailable) — keyword-based, not graded."
+                    )
+                if result.overall_feedback:
+                    st.write(f"**Overall Feedback:** {result.overall_feedback}")
+                if result.criterion_scores:
+                    st.write("**Detailed Breakdown:**")
+                    for c in result.criterion_scores:
+                        st.write(f"- {c.criterion}: {c.marks_awarded}/{c.max_marks}")
+                        if c.feedback:
+                            st.write(f"  *{c.feedback}*")
+                if result.strengths:
+                    st.success("**Strengths:** " + ", ".join(result.strengths))
+                if result.improvements:
+                    st.info("**Areas for Improvement:** " + ", ".join(result.improvements))
+                st.markdown("**Model answer:**")
+                st.info(question.model_answer)
+        else:
+            user_letter = _mcq_letter(user_answer) if len(question.options) > 2 else user_answer
+            is_correct = user_letter == question.correct_answer
+            with st.expander(f"Question {i + 1}: {'✅' if is_correct else '❌'}"):
+                st.write(f"**Question:** {question.question}")
+                st.write(f"**Your Answer:** {user_answer}")
+                if len(question.options) > 2:
                     correct_option = next(
-                        (opt for opt in question["options"] if opt[0] == correct_answer),
-                        f"{correct_answer})",
+                        (opt for opt in question.options if opt[:1] == question.correct_answer),
+                        question.correct_answer,
                     )
                 else:
-                    correct_option = correct_answer
-
+                    correct_option = question.correct_answer
                 st.write(f"**Correct Answer:** {correct_option}")
-                st.write(f"**Explanation:** {question['explanation']}")
-
+                st.write(f"**Explanation:** {question.explanation}")
                 if is_correct:
                     st.success("Correct! 🎉")
                 else:
                     st.error("Incorrect 😔")
 
-    # Restart quiz button
     if st.button("Take Quiz Again"):
         st.session_state.current_question = 0
         st.session_state.user_answers = {}
@@ -1091,41 +802,32 @@ def display_term(term):
 def generate_quiz_content(
     final_text, quiz_type, num_questions, difficulty, mcq_count=0, tf_count=0, open_count=0
 ):
-    """Generate quiz content with error handling."""
+    """Generate a quiz and store it (as a Quiz model) in session state."""
     with st.spinner(f"🤖 Generating quiz using {ai_provider}..."):
         try:
-            # Handle different quiz types
             if quiz_type == "Open-ended Questions":
-                from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
-
-                processor = OpenEndedQuestionProcessor(client, provider_cfg)
-                quiz_data = processor.generate_open_ended_questions(
-                    final_text, num_questions, difficulty
-                )
+                quiz = quiz_gen.generate_open_ended(client, provider_cfg, final_text, num_questions, difficulty)
             elif quiz_type == "Complete Mix (All Types)":
-                from learning_engine.open_ended_processor import OpenEndedQuestionProcessor
-
-                processor = OpenEndedQuestionProcessor(client, provider_cfg)
-                quiz_data = processor.generate_mixed_quiz(
-                    final_text, mcq_count, tf_count, open_count, difficulty
+                quiz = quiz_gen.generate_mixed(
+                    client, provider_cfg, final_text, mcq_count, tf_count, open_count, difficulty
                 )
             else:
-                quiz_data = generate_quiz(final_text, quiz_type, num_questions, difficulty)
+                quiz = quiz_gen.generate_quiz(client, provider_cfg, final_text, quiz_type, num_questions, difficulty)
 
             # Track analytics
             analytics.track_feature_usage("quiz_generation")
             analytics.track_ai_provider_usage(st.session_state.ai_provider)
 
-            if "error" not in quiz_data:
-                st.session_state.quiz_generated = True
-                st.session_state.quiz_data = quiz_data
-                st.session_state.quiz_difficulty = difficulty  # Store difficulty for results
-                st.session_state.quiz_type = quiz_type  # Store quiz type
-                st.success("✅ Quiz generated successfully! Start answering below.")
-                st.rerun()
-            else:
-                st.error(f"❌ Failed to generate quiz: {quiz_data.get('error', 'Unknown error')}")
+            st.session_state.quiz_generated = True
+            st.session_state.quiz_data = quiz
+            st.session_state.quiz_difficulty = difficulty  # Store difficulty for results
+            st.session_state.quiz_type = quiz_type  # Store quiz type
+            st.success("✅ Quiz generated successfully! Start answering below.")
+            st.rerun()
 
+        except GenerationFailed as e:
+            st.error(f"❌ Could not generate a valid quiz: {e}")
+            st.info("Try again, or switch to a more capable model/provider in the sidebar.")
         except Exception as e:
             st.error(f"❌ Error during quiz generation: {str(e)}")
             # Add debug information
