@@ -56,26 +56,39 @@ Supports **Local AI (Ollama)**, **Google AI**, and **OpenAI** with complete priv
 
 ## 🚀 Quick Start
 
-### Option 1: Easy Setup Wizard (Recommended)
+### Option 1: uv (Recommended)
 ```bash
-# Download the code as a zip file or
 # Clone the repository
 git clone https://github.com/EzzoHamdan/AI-Learning-Engine
 cd AI-Learning-Engine
 
-# Run the setup wizard
-python setup_easy.py
+# Install everything into a managed virtual environment
+uv sync
+
+# Run the application
+uv run streamlit run app.py
+
+# Then configure your AI provider in the sidebar
 ```
 
-### Option 2: Manual Setup
+### Option 2: pip
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
+# 1. (optional) create and activate a virtual environment
+python -m venv .venv && source .venv/bin/activate
 
-# 2. Run the application
+# 2. Install the app and its dependencies
+pip install -e .
+
+# 3. Run the application
 streamlit run app.py
 
-# 3. Configure your AI provider in the sidebar
+# 4. Configure your AI provider in the sidebar
+```
+
+### Option 3: Easy Setup Wizard
+```bash
+# Interactive wizard that installs deps and writes your .env
+python scripts/setup_wizard.py
 ```
 
 ### Option 3: Local AI Setup (Best for Cost)
@@ -132,29 +145,27 @@ streamlit run app.py
 
 ```
 AI-Learning-Engine/
-├── 📄 Core Application
-│   ├── app.py                          # Main Streamlit application
-│   ├── study_materials_generator.py    # Study materials engine
-│   ├── open_ended_processor.py         # Quiz processing & AI scoring
-│   ├── learning_analytics.py           # Analytics & progress tracking
-│   └── session_manager.py              # Session state management
+├── app.py                              # Streamlit entrypoint
+├── pyproject.toml                      # Metadata, dependencies, tool config
+├── uv.lock                             # Pinned dependency lockfile
+├── .env.example                        # Example environment configuration
 │
-├── 🤖 AI Integration  
+├── src/learning_engine/                # Importable application package
+│   ├── settings.py                     # Application configuration
+│   ├── session_manager.py             # Session state management
 │   ├── ai_client_factory.py           # Multi-provider client factory
 │   ├── google_ai_client.py            # Google AI wrapper
-│   └── local_ai_client.py             # Local AI (Ollama) client
-│
-├── ⚙️ Configuration
-│   ├── config.py                      # Application configuration
-│   ├── auto_config.py                 # Auto-configuration utilities
-│   └── setup_easy.py                  # Setup wizard
-│
-├── 🔧 Utilities
+│   ├── local_ai_client.py             # Local AI (Ollama) client
+│   ├── open_ended_processor.py        # Open-ended generation & AI scoring
+│   ├── study_materials_generator.py   # Study materials engine
+│   ├── learning_analytics.py          # Analytics & progress tracking
 │   └── logger.py                      # Logging system
 │
-└── 📚 Documentation
-    ├── README.md                      # This file
-    └── requirements.txt               # Dependencies
+├── scripts/
+│   └── setup_wizard.py                # Interactive setup wizard
+│
+├── tests/                              # Manual smoke checklist (automated tests: Phase 8)
+└── docs/                               # Documentation, incl. modernization plan
 ```
 
 ## 🎓 Study Material Types
