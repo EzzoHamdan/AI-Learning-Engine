@@ -29,8 +29,10 @@ def finalize_quiz(
     questions: list[Question], user_answers: dict[int, str], active: ActiveProvider
 ) -> None:
     """Score the quiz and record analytics exactly once, on completion (BUG-2)."""
-    traditional = [(i, q) for i, q in enumerate(questions) if q.type != "open_ended"]
-    open_ended = [(i, q) for i, q in enumerate(questions) if q.type == "open_ended"]
+    # isinstance rather than a `.type` comparison: it partitions the union into
+    # the two concrete models, so each branch below gets the fields it needs.
+    traditional = [(i, q) for i, q in enumerate(questions) if isinstance(q, MCQQuestion)]
+    open_ended = [(i, q) for i, q in enumerate(questions) if isinstance(q, OpenEndedQuestion)]
 
     # Score traditional questions
     traditional_correct = 0
@@ -48,11 +50,10 @@ def finalize_quiz(
     if open_ended and active.ok:
         st.info("🤖 Scoring open-ended questions with AI... This may take a moment.")
         progress_bar = st.progress(0)
-        for idx, (i, q) in enumerate(open_ended):
-            result = quiz_gen.score_open_ended(
-                active.client, active.cfg, q, user_answers.get(i, "")
-            )
-            open_ended_scores.append((i, q, result))
+        client, cfg = active.require()
+        for idx, (i, open_q) in enumerate(open_ended):
+            result = quiz_gen.score_open_ended(client, cfg, open_q, user_answers.get(i, ""))
+            open_ended_scores.append((i, open_q, result))
             total_open_ended_marks += result.max_score
             earned_open_ended_marks += result.total_score
             progress_bar.progress((idx + 1) / len(open_ended))
@@ -83,8 +84,9 @@ def finalize_quiz(
     )
 
     # Analytics consumes plain dicts (the persistent store arrives in Phase 6).
+    quiz = state.quiz_data()
     state.tracker().track_quiz_completion(
-        quiz_data=state.quiz_data().model_dump(),
+        quiz_data=quiz.model_dump() if quiz else {"questions": []},
         user_answers=user_answers,
         performance_stats={
             "traditional_correct": traditional_correct,

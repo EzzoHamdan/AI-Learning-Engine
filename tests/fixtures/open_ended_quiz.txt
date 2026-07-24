@@ -1,0 +1,56 @@
+{
+  "questions": [
+    {
+      "question": "Compare and contrast the light-dependent reactions and the Calvin cycle in terms of their location within the chloroplast and their primary outputs.",
+      "total_marks": 4,
+      "marking_scheme": [
+        {
+          "criterion": "Correct identification of locations for both stages",
+          "marks": 2,
+          "keywords": [
+            "thylakoid membranes",
+            "stroma"
+          ]
+        },
+        {
+          "criterion": "Correct identification of outputs for both stages",
+          "marks": 2,
+          "keywords": [
+            "ATP",
+            "NADPH",
+            "oxygen",
+            "glucose"
+          ]
+        }
+      ],
+      "model_answer": "The light-dependent reactions occur in the thylakoid membranes and produce ATP, NADPH, and oxygen. In contrast, the Calvin cycle takes place in the stroma and produces glucose by fixing carbon dioxide using the ATP and NADPH generated in the first stage.",
+      "type": "open_ended"
+    },
+    {
+      "question": "Explain the functional significance of accessory pigments in the process of photosynthesis.",
+      "total_marks": 3,
+      "marking_scheme": [
+        {
+          "criterion": "Identification of specific accessory pigments",
+          "marks": 1,
+          "keywords": [
+            "chlorophyll b",
+            "carotenoids"
+          ]
+        },
+        {
+          "criterion": "Explanation of their role in wavelength absorption",
+          "marks": 2,
+          "keywords": [
+            "broaden",
+            "range of wavelengths",
+            "absorbed",
+            "light energy"
+          ]
+        }
+      ],
+      "model_answer": "Accessory pigments, such as chlorophyll b and carotenoids, function by broadening the range of light wavelengths that a plant can absorb. This allows the plant to capture more light energy than would be possible if it relied solely on chlorophyll a.",
+      "type": "open_ended"
+    }
+  ]
+}

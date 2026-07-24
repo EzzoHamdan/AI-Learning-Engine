@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from learning_engine.models import Quiz
+from learning_engine.models import OpenEndedQuestion, Quiz
 from learning_engine.ui import state
 from learning_engine.ui.components.results import display_results, finalize_quiz
 from learning_engine.ui.providers import ActiveProvider
@@ -31,8 +31,8 @@ def display_quiz(quiz: Quiz, active: ActiveProvider) -> None:
         st.write(f"Question {current_q + 1} of {total_questions}")
         st.subheader(f"Q{current_q + 1}: {question.question}")
 
-        is_open_ended = question.type == "open_ended"
-        if is_open_ended:
+        is_open_ended = isinstance(question, OpenEndedQuestion)
+        if isinstance(question, OpenEndedQuestion):
             st.info(f"📝 **Open-ended Question** | Total Marks: {question.total_marks}")
             st.caption("💡 Write a comprehensive answer. Quality matters more than quantity!")
             current_answer = state.user_answers().get(current_q, "")
@@ -46,8 +46,9 @@ def display_quiz(quiz: Quiz, active: ActiveProvider) -> None:
             if user_answer:
                 st.caption(f"Word count: {len(user_answer.split())}")
         else:
-            user_answer = st.radio(
-                "Select your answer:", question.options, key=f"q_{current_q}", index=None
+            user_answer = (
+                st.radio("Select your answer:", question.options, key=f"q_{current_q}", index=None)
+                or ""
             )
 
         col1, _col2, col3 = st.columns([1, 1, 1])

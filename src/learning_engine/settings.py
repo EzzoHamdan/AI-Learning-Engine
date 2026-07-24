@@ -232,7 +232,7 @@ class AppSettings(BaseSettings):
 
     title: str = "📚 AI Interactive Quiz & Study Materials Generator"
     page_icon: str = "📚"
-    layout: str = "wide"
+    layout: Literal["centered", "wide"] = "wide"
 
     debug: bool = Field(False, validation_alias=AliasChoices("APP__DEBUG", "DEBUG"))
 

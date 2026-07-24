@@ -32,15 +32,20 @@ def _temperature() -> float:
 
 
 _SUMMARY_INSTRUCTIONS = {
-    "detailed": "Comprehensive, detailed summary covering all major topics with examples; 300-500 words.",
+    "detailed": "Comprehensive, detailed summary covering all major topics with examples; "
+    "300-500 words.",
     "concise": "Concise summary of the essential points in clear language; 150-250 words.",
     "bullet_points": "Well-organized hierarchical bullet-point summary grouping related concepts.",
 }
 _CHEAT_INSTRUCTIONS = {
-    "comprehensive": "Key concepts, definitions, important formulas/principles, procedures, and memory aids.",
-    "formulas": "Focus on formulas and equations with variable definitions and example calculations.",
-    "definitions": "Focus on key terms and definitions, acronyms, classifications, and related concepts.",
-    "quick_ref": "Ultra-concise quick reference: essential facts only, short phrases, easy to scan.",
+    "comprehensive": "Key concepts, definitions, important formulas/principles, procedures, "
+    "and memory aids.",
+    "formulas": "Focus on formulas and equations with variable definitions and example "
+    "calculations.",
+    "definitions": "Focus on key terms and definitions, acronyms, classifications, and "
+    "related concepts.",
+    "quick_ref": "Ultra-concise quick reference: essential facts only, short phrases, "
+    "easy to scan.",
 }
 _FLASHCARD_INSTRUCTIONS = {
     "basic": "Simple definitions, facts, and straightforward question-answer pairs.",
@@ -135,7 +140,8 @@ def generate_outline(
         f"{_instr(_OUTLINE_INSTRUCTIONS, outline_depth, 'detailed')}\n"
         "Use Roman numerals for main topics (level 1), capital letters for subtopics (level 2), "
         "numbers for details (level 3); nest via each item's children. Provide total_sections, "
-        f"max_depth, study_sequence, and time_estimates. Set outline_depth to {outline_depth!r}.\n\n"
+        "max_depth, study_sequence, and time_estimates. "
+        f"Set outline_depth to {outline_depth!r}.\n\n"
         f"Content:\n{text}"
     )
     return generate_structured(client, cfg.chat_model, prompt, Outline, temperature=_temperature())

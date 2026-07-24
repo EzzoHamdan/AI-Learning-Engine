@@ -39,6 +39,19 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]
 
+[tool.mypy]
+python_version = "3.11"
+files = ["src"]
+plugins = ["pydantic.mypy"]
+# Starting strictness: type-check the bodies of unannotated functions too, but
+# don't yet require every signature to be annotated. Tighten per-module below.
+check_untyped_defs = true
+warn_redundant_casts = true
+# Third-party packages without shipped stubs (streamlit, fitz, pptx, plotly, ...).
+ignore_missing_imports = true
+# Next tightening step, once signatures are annotated throughout:
+#   disallow_untyped_defs = true
+
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]

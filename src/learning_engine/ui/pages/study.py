@@ -10,12 +10,14 @@ import time
 from datetime import datetime
 
 import streamlit as st
+from pydantic import BaseModel
+from streamlit.runtime.uploaded_file_manager import UploadedFile
 
 from learning_engine.analytics import metrics
 from learning_engine.extraction import ExtractionError, extract_text
 from learning_engine.generation import materials as materials_gen
 from learning_engine.generation import quiz as quiz_gen
-from learning_engine.llm.client import GenerationFailed
+from learning_engine.llm.client import GenerationFailed, ProviderUnavailable
 from learning_engine.settings import AppSettings, QuizSettings, get_settings
 from learning_engine.ui import sidebar, state
 from learning_engine.ui.components.materials import display_study_materials
@@ -67,11 +69,15 @@ def render() -> None:
     )
 
     if request.uploaded_file and not (state.quiz_generated() or state.materials_generated()):
-        _handle_document_and_generation(request, active, quiz_config, app_config)
+        _handle_document_and_generation(
+            request, request.uploaded_file, active, quiz_config, app_config
+        )
     elif request.uploaded_file and state.quiz_generated():
         # Display the interactive quiz
         st.markdown("---")
-        display_quiz(state.quiz_data(), active)
+        quiz = state.quiz_data()
+        if quiz is not None:
+            display_quiz(quiz, active)
 
         with st.sidebar:
             st.markdown("---")
@@ -96,12 +102,12 @@ def render() -> None:
 
 def _handle_document_and_generation(
     request: GenerationRequest,
+    uploaded_file: UploadedFile,
     active: ActiveProvider,
     quiz_config: QuizSettings,
     app_config: AppSettings,
 ) -> None:
     """Extract text, summarize if needed, and offer the generate button."""
-    uploaded_file = request.uploaded_file
 
     # Enforce the upload size limit before doing any work with the file
     max_upload_bytes = quiz_config.max_upload_bytes
@@ -221,7 +227,8 @@ def _handle_document_and_generation(
 def _summarize_text(active: ActiveProvider, text: str) -> str:
     """Return a condensed summary, or the original text if summarization fails."""
     try:
-        return quiz_gen.summarize(active.client, active.cfg, text)
+        client, cfg = active.require()
+        return quiz_gen.summarize(client, cfg, text)
     except Exception as e:
         st.error(f"❌ Error during text summarization: {str(e)}")
         return text  # Fall back to the original text if summarization fails
@@ -233,18 +240,19 @@ def _generate_quiz(
     """Generate a quiz and store it (as a Quiz model) in session state."""
     with st.spinner(f"🤖 Generating quiz using {active.display_name}..."):
         try:
+            client, cfg = active.require()
             if request.quiz_type == "Open-ended Questions":
                 quiz = quiz_gen.generate_open_ended(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     request.num_questions,
                     request.difficulty,
                 )
             elif request.quiz_type == "Complete Mix (All Types)":
                 quiz = quiz_gen.generate_mixed(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     request.mcq_count,
                     request.tf_count,
@@ -253,8 +261,8 @@ def _generate_quiz(
                 )
             else:
                 quiz = quiz_gen.generate_quiz(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     request.quiz_type,
                     request.num_questions,
@@ -269,6 +277,8 @@ def _generate_quiz(
             st.success("✅ Quiz generated successfully! Start answering below.")
             st.rerun()
 
+        except ProviderUnavailable as e:
+            st.error(f"❌ {active.display_name} is unavailable: {e}")
         except GenerationFailed as e:
             st.error(f"❌ Could not generate a valid quiz: {e}")
             st.info("Try again, or switch to a more capable model/provider in the sidebar.")
@@ -290,48 +300,52 @@ def _generate_materials(
     options = request.material_options
     generation_start_time = time.time()
 
+    # Each branch returns a different model; the union is what store_materials holds.
+    materials_data: BaseModel
+
     with st.spinner(f"📚 Generating {material_type.lower()} using {active.display_name}..."):
         try:
+            client, cfg = active.require()
             if material_type == "Complete Study Guide":
                 materials_data = materials_gen.generate_study_guide(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     options.get("guide_type", "comprehensive"),
                     generated_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 )
             elif material_type == "Summary Only":
                 materials_data = materials_gen.generate_summary(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     options.get("summary_type", "detailed"),
                 )
             elif material_type == "Cheat Sheet":
                 materials_data = materials_gen.generate_cheat_sheet(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     options.get("cheat_format", "comprehensive"),
                 )
             elif material_type == "Flashcards":
                 materials_data = materials_gen.generate_flashcards(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     options.get("card_count", 15),
                     options.get("flashcard_difficulty", "mixed"),
                 )
             elif material_type == "Study Outline":
                 materials_data = materials_gen.generate_outline(
-                    active.client,
-                    active.cfg,
+                    client,
+                    cfg,
                     final_text,
                     options.get("outline_depth", "detailed"),
                 )
             elif material_type == "Key Terms":
                 materials_data = materials_gen.generate_key_terms(
-                    active.client, active.cfg, final_text, options.get("term_count", 15)
+                    client, cfg, final_text, options.get("term_count", 15)
                 )
             else:
                 st.error(f"❌ Unknown material type: {material_type}")

@@ -1,0 +1,52 @@
+{
+  "flashcards": [
+    {
+      "id": 1,
+      "front": "What is the overall chemical equation for photosynthesis?",
+      "back": "6CO2 + 6H2O + light -> C6H12O6 + 6O2",
+      "hint": "Includes carbon dioxide, water, and light.",
+      "difficulty": "basic",
+      "category": "Photosynthesis"
+    },
+    {
+      "id": 2,
+      "front": "Where specifically in the plant cell does photosynthesis occur?",
+      "back": "It occurs in the chloroplasts, primarily within the mesophyll cells of the leaves.",
+      "hint": "Think of the organelle responsible for capturing light.",
+      "difficulty": "basic",
+      "category": "Photosynthesis"
+    },
+    {
+      "id": 3,
+      "front": "What are the primary products of the light-dependent reactions and where do they occur?",
+      "back": "The light-dependent reactions take place in the thylakoid membranes and produce ATP and NADPH, while releasing oxygen as a byproduct from the splitting of water.",
+      "hint": "Focus on the energy molecules produced.",
+      "difficulty": "intermediate",
+      "category": "Photosynthesis"
+    },
+    {
+      "id": 4,
+      "front": "Describe the purpose and location of the Calvin cycle.",
+      "back": "The Calvin cycle (light-independent reactions) takes place in the stroma and uses ATP and NADPH to fix carbon dioxide into glucose.",
+      "hint": "This is the stage where sugar is actually created.",
+      "difficulty": "intermediate",
+      "category": "Photosynthesis"
+    },
+    {
+      "id": 5,
+      "front": "How do accessory pigments contribute to the efficiency of photosynthesis compared to chlorophyll a?",
+      "back": "While chlorophyll a is the primary pigment, accessory pigments like chlorophyll b and carotenoids broaden the range of wavelengths that can be absorbed, allowing the plant to capture more light energy.",
+      "hint": "Consider the spectrum of light.",
+      "difficulty": "advanced",
+      "category": "Photosynthesis"
+    }
+  ],
+  "total_cards": 5,
+  "categories": [
+    "Photosynthesis"
+  ],
+  "study_tips": [
+    "Draw a diagram of a chloroplast to visualize the difference between the thylakoid and the stroma.",
+    "Memorize the equation by grouping the reactants (inputs) and products (outputs)."
+  ]
+}

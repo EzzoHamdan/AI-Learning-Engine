@@ -81,12 +81,17 @@ class AnalyticsTracker:
                 },
             }
 
-    def _persist(self, write: Callable[[], object]) -> None:
-        """Run a store write, swallowing errors so persistence never breaks the app."""
-        if self._store is None:
+    def _persist(self, write: Callable[[AnalyticsStore], object]) -> None:
+        """Run a store write, swallowing errors so persistence never breaks the app.
+
+        The store is handed to the callback rather than read from self, so the
+        None-check above actually covers the write.
+        """
+        store = self._store
+        if store is None:
             return
         try:
-            write()
+            write(store)
         except Exception as exc:  # noqa: BLE001 — best-effort persistence
             logger.warning("Analytics persistence failed: %s", exc)
 
@@ -207,7 +212,7 @@ class AnalyticsTracker:
         analytics["detailed_results"].append(detailed_result)
 
         self._persist(
-            lambda: self._store.record_quiz(
+            lambda store: store.record_quiz(
                 difficulty=difficulty,
                 quiz_type=mapped_type,
                 total_questions=total_questions,
@@ -257,7 +262,7 @@ class AnalyticsTracker:
         )
 
         self._persist(
-            lambda: self._store.record_material_event(material_type, generation_time, success)
+            lambda store: store.record_material_event(material_type, generation_time, success)
         )
 
         self.add_to_learning_history(
@@ -279,7 +284,7 @@ class AnalyticsTracker:
 
         self.engagement_metrics["flashcard_interactions"][counter] += 1
         self.track_feature_usage("flashcards")
-        self._persist(lambda: self._store.record_flashcard_event(action))
+        self._persist(lambda store: store.record_flashcard_event(action))
 
     def track_feature_usage(self, feature: str) -> None:
         """Track usage of different app features."""

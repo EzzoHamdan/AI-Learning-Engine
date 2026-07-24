@@ -36,6 +36,19 @@ class ActiveProvider:
     ok: bool
     error: str | None
 
+    def require(self) -> tuple[OpenAI, ProviderConfig]:
+        """Return (client, cfg), or raise if the provider is unavailable.
+
+        Callers gate on `ok` before generating, but that guard lives several
+        frames away from the call sites. This turns the implicit invariant into
+        one explicit unwrap: generation code receives non-optional values, and a
+        missed guard surfaces as ProviderUnavailable instead of an AttributeError
+        deep inside the OpenAI SDK.
+        """
+        if self.client is None or self.cfg is None:
+            raise ProviderUnavailable(self.error or f"{self.display_name} is unavailable")
+        return self.client, self.cfg
+
 
 def build_provider_config(provider: Provider, session_manager: SessionManager) -> ProviderConfig:
     """Assemble a ProviderConfig from settings defaults + session keys/model."""
@@ -77,7 +90,7 @@ def resolve_provider(session_manager: SessionManager) -> ProviderConfig:
     cfg = build_provider_config(provider, session_manager)
 
     if provider is Provider.OLLAMA:
-        models = list_ollama_models(cfg.base_url)
+        models = list_ollama_models(cfg.base_url or get_settings().llm.ollama.base_url)
         if not models:
             _, message = health_check(cfg)  # distinguishes "down" vs "no models"
             raise ProviderUnavailable(message)

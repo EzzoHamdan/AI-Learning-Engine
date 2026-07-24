@@ -86,7 +86,7 @@ def generate_structured(
     }
 
     prompt_now = base_prompt
-    response_format = native_format
+    response_format: dict | None = native_format
     last_error = ""
 
     for _ in range(2):  # initial attempt + one corrective retry

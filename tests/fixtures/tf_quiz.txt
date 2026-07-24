@@ -1,0 +1,24 @@
+{
+  "questions": [
+    {
+      "question": "The Calvin cycle occurs within the thylakoid membranes and requires the splitting of water to produce glucose.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correct_answer": "False",
+      "explanation": "The Calvin cycle takes place in the stroma, not the thylakoid membranes, and it uses ATP and NADPH to fix carbon dioxide rather than splitting water.",
+      "type": "tf"
+    },
+    {
+      "question": "Accessory pigments like carotenoids and chlorophyll b serve to expand the spectrum of light wavelengths that a plant can utilize for photosynthesis.",
+      "options": [
+        "True",
+        "False"
+      ],
+      "correct_answer": "True",
+      "explanation": "Accessory pigments broaden the range of wavelengths that can be absorbed, complementing the absorption spectrum of the primary pigment, chlorophyll a.",
+      "type": "tf"
+    }
+  ]
+}

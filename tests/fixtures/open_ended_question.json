@@ -1,0 +1,26 @@
+{
+  "question": "Compare and contrast the light-dependent reactions and the Calvin cycle in terms of their location within the chloroplast and their primary outputs.",
+  "total_marks": 4.0,
+  "marking_scheme": [
+    {
+      "criterion": "Correct identification of locations for both stages",
+      "marks": 2.0,
+      "keywords": [
+        "thylakoid membranes",
+        "stroma"
+      ]
+    },
+    {
+      "criterion": "Correct identification of outputs for both stages",
+      "marks": 2.0,
+      "keywords": [
+        "ATP",
+        "NADPH",
+        "oxygen",
+        "glucose"
+      ]
+    }
+  ],
+  "model_answer": "The light-dependent reactions occur in the thylakoid membranes and produce ATP, NADPH, and oxygen. In contrast, the Calvin cycle takes place in the stroma and produces glucose by fixing carbon dioxide using the ATP and NADPH generated in the first stage.",
+  "type": "open_ended"
+}

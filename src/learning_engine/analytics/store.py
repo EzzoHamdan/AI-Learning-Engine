@@ -137,7 +137,8 @@ class AnalyticsStore:
                 "VALUES (?, ?, ?, ?, ?, ?)",
                 (iso, difficulty, quiz_type, total_questions, correct, score_pct),
             )
-            quiz_id = int(cur.lastrowid)
+            # lastrowid is Optional in the stubs but always set after an INSERT.
+            quiz_id = int(cur.lastrowid or 0)
             conn.executemany(
                 "INSERT INTO question_results (quiz_id, qtype, correct, difficulty_tag) "
                 "VALUES (?, ?, ?, ?)",

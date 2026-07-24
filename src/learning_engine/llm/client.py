@@ -33,6 +33,7 @@ def make_client(cfg: ProviderConfig, timeout: float | None = None) -> OpenAI:
     to `LLM__REQUEST_TIMEOUT`.
     """
     settings = get_settings().llm
+    base_url: str | None
     if cfg.provider is Provider.OLLAMA:
         base_url = f"{(cfg.base_url or settings.ollama.base_url).rstrip('/')}/v1"
         api_key = cfg.api_key or "ollama"

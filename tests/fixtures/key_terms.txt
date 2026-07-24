@@ -1,0 +1,81 @@
+{
+  "key_terms": [
+    {
+      "term": "Photosynthesis",
+      "definition": "The process by which green plants, algae, and some bacteria convert light energy into chemical energy.",
+      "context": "The overarching biological process described in the text.",
+      "related_terms": [
+        "Chemical energy",
+        "Light energy"
+      ],
+      "importance": "high"
+    },
+    {
+      "term": "Chloroplasts",
+      "definition": "Organelles where photosynthesis occurs, specifically within the mesophyll cells of leaves.",
+      "context": "The cellular location of the photosynthetic process.",
+      "related_terms": [
+        "Mesophyll cells",
+        "Thylakoid",
+        "Stroma"
+      ],
+      "importance": "high"
+    },
+    {
+      "term": "Light-dependent reactions",
+      "definition": "The first stage of photosynthesis occurring in thylakoid membranes that produces ATP and NADPH and releases oxygen.",
+      "context": "The initial phase of energy conversion using water and light.",
+      "related_terms": [
+        "ATP",
+        "NADPH",
+        "Thylakoid membranes"
+      ],
+      "importance": "high"
+    },
+    {
+      "term": "Calvin cycle",
+      "definition": "The light-independent reactions taking place in the stroma that fix carbon dioxide into glucose using ATP and NADPH.",
+      "context": "The second stage of photosynthesis focused on carbon fixation.",
+      "related_terms": [
+        "Stroma",
+        "Glucose",
+        "Carbon dioxide"
+      ],
+      "importance": "high"
+    },
+    {
+      "term": "Chlorophyll",
+      "definition": "The primary pigment (specifically chlorophyll a) and accessory pigments used to absorb wavelengths of light.",
+      "context": "The light-absorbing molecules that drive the process.",
+      "related_terms": [
+        "Chlorophyll b",
+        "Carotenoids",
+        "Pigments"
+      ],
+      "importance": "medium"
+    }
+  ],
+  "total_terms": 5,
+  "categories": [
+    {
+      "category": "Biological Processes",
+      "terms": [
+        "Photosynthesis",
+        "Light-dependent reactions",
+        "Calvin cycle"
+      ]
+    },
+    {
+      "category": "Cellular Structures & Molecules",
+      "terms": [
+        "Chloroplasts",
+        "Chlorophyll"
+      ]
+    }
+  ],
+  "study_suggestions": [
+    "Draw a diagram of a chloroplast and label the thylakoid and stroma to visualize where each stage occurs.",
+    "Memorize the overall chemical equation for photosynthesis and identify the reactants and products.",
+    "Create a flow chart showing how the products of the light-dependent reactions (ATP/NADPH) are used in the Calvin cycle."
+  ]
+}

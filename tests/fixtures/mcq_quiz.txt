@@ -1,0 +1,40 @@
+{
+  "questions": [
+    {
+      "question": "In which specific part of the chloroplast do the light-dependent reactions occur, and what are their primary outputs?",
+      "options": [
+        "A) Stroma; glucose and oxygen",
+        "B) Thylakoid membranes; ATP, NADPH, and oxygen",
+        "C) Mesophyll cells; carbon dioxide and ATP",
+        "D) Stroma; ATP and NADPH"
+      ],
+      "correct_answer": "B",
+      "explanation": "The light-dependent reactions take place in the thylakoid membranes, where light energy is used to split water (releasing oxygen) and produce the energy carriers ATP and NADPH.",
+      "type": "mcq"
+    },
+    {
+      "question": "What is the primary role of the Calvin cycle in the overall process of photosynthesis?",
+      "options": [
+        "A) To split water molecules to release oxygen",
+        "B) To absorb a broad range of light wavelengths using carotenoids",
+        "C) To fix carbon dioxide into glucose using ATP and NADPH",
+        "D) To generate light energy for the thylakoid membranes"
+      ],
+      "correct_answer": "C",
+      "explanation": "The Calvin cycle, occurring in the stroma, uses the chemical energy (ATP and NADPH) produced in the light-dependent reactions to convert carbon dioxide into glucose.",
+      "type": "mcq"
+    },
+    {
+      "question": "How do accessory pigments, such as chlorophyll b and carotenoids, contribute to the efficiency of photosynthesis?",
+      "options": [
+        "A) By replacing chlorophyll a as the primary pigment for glucose synthesis",
+        "B) By facilitating the splitting of water in the stroma",
+        "C) By increasing the rate of carbon dioxide fixation in the Calvin cycle",
+        "D) By broadening the spectrum of light wavelengths that the plant can absorb"
+      ],
+      "correct_answer": "D",
+      "explanation": "While chlorophyll a is the primary pigment, accessory pigments like chlorophyll b and carotenoids allow the plant to capture additional wavelengths of light that chlorophyll a cannot absorb efficiently.",
+      "type": "mcq"
+    }
+  ]
+}

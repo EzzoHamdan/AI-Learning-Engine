@@ -1,0 +1,28 @@
+{
+  "total_score": 4.0,
+  "max_score": 4.0,
+  "percentage": 100.0,
+  "overall_feedback": "The student provided a concise and accurate answer that addressed all requirements of the prompt and marking scheme.",
+  "criterion_scores": [
+    {
+      "criterion": "Correct identification of locations for both stages",
+      "marks_awarded": 2.0,
+      "max_marks": 2.0,
+      "feedback": "Both thylakoid membrane and stroma were correctly identified."
+    },
+    {
+      "criterion": "Correct identification of outputs for both stages",
+      "marks_awarded": 2.0,
+      "max_marks": 2.0,
+      "feedback": "All key outputs (oxygen, ATP, NADPH, and glucose) were correctly listed."
+    }
+  ],
+  "strengths": [
+    "Accurate identification of chloroplast anatomy",
+    "Clear link between the outputs of the light reactions and the requirements of the Calvin cycle"
+  ],
+  "improvements": [
+    "None; the answer fully meets the marking criteria."
+  ],
+  "estimated": false
+}

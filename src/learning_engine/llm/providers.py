@@ -11,14 +11,14 @@ This module must not import Streamlit (architecture rule R1).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import Enum
+from enum import StrEnum
 
 import requests
 
 from learning_engine.settings import get_settings
 
 
-class Provider(str, Enum):
+class Provider(StrEnum):
     OLLAMA = "ollama"
     GOOGLE = "google"
     OPENAI = "openai"

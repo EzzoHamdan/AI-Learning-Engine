@@ -88,7 +88,9 @@ def render() -> None:
         )
     st.markdown("---")
 
-    view: AnalyticsView = tracker if scope == "This session" else _StoreView(store)
+    view: AnalyticsView = (
+        _StoreView(store) if store is not None and scope == "All time" else tracker
+    )
 
     _session_overview(tracker, view, scope)
 
