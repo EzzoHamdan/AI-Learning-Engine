@@ -156,7 +156,7 @@ AI-Learning-Engine/
 ├── .env.example                        # Example environment configuration
 │
 ├── src/learning_engine/                # Importable application package
-│   ├── settings.py                     # Application configuration
+│   ├── settings.py                     # Single config source (pydantic-settings, env-overridable)
 │   ├── models.py                       # Pydantic domain models (typed LLM output)
 │   ├── logger.py                       # Logging system
 │   │
@@ -185,13 +185,14 @@ AI-Learning-Engine/
 │       ├── providers.py                #   resolve provider → cached client
 │       ├── sidebar.py                  #   sidebar → typed GenerationRequest
 │       ├── tracking.py                 #   analytics recording (session + SQLite store)
+│       ├── difficulty.py               #   difficulty labels + score-band messages
 │       ├── pages/                      #   study.py + analytics.py
 │       └── components/                 #   quiz_runner, results, flashcards, materials
 │
 ├── scripts/
 │   └── setup_wizard.py                # Interactive setup wizard
 │
-├── tests/                              # pytest suite (store, metrics) + manual smoke checklist
+├── tests/                              # pytest suite (settings, store, metrics) + manual smoke checklist
 └── docs/                               # Documentation, incl. modernization plan
 ```
 
@@ -254,15 +255,35 @@ Expert-level questions with manipulative elements, edge cases, and sophisticated
 ## 🔧 Configuration & Setup
 
 ### Environment Variables (.env file - optional)
+
+Every setting lives in [`src/learning_engine/settings.py`](src/learning_engine/settings.py) and is
+overridable from the environment. Names are grouped by prefix — `LLM__`, `QUIZ__`, `APP__` — with
+`__` separating nested sections, so the Ollama chat model is `LLM__OLLAMA__CHAT_MODEL`. API keys and
+a few deployment flags keep their conventional unprefixed names. See
+[`.env.example`](.env.example) for the complete, commented list.
+
 ```env
-# Local AI (automatically detected)
-LOCAL_AI_MODEL="gemma2:2b"
-
-# Google AI
+# API keys (conventional names, no prefix)
 GOOGLE_AI_API_KEY=your_google_ai_key_here
-
-# OpenAI (optional)  
 OPENAI_API_KEY=your_openai_key_here
+
+# Which provider to start on: ollama | google | openai
+LLM__DEFAULT_PROVIDER=ollama
+
+# Local AI (Ollama)
+LLM__OLLAMA__CHAT_MODEL="gemma2:2b"
+LLM__OLLAMA__HOST=127.0.0.1
+LLM__OLLAMA__PORT=11434
+
+# Generation knobs (defaults shown)
+# LLM__GENERATION_TEMPERATURE=0.7
+# LLM__SCORING_TEMPERATURE=0.3
+# LLM__REQUEST_TIMEOUT=120
+
+# Quiz limits (defaults shown)
+# QUIZ__MAX_QUESTIONS=15
+# QUIZ__MAX_UPLOAD_MB=50
+# QUIZ__SUMMARY_THRESHOLD=5000
 
 # Debug mode
 DEBUG=false
@@ -275,6 +296,10 @@ DEPLOYED=false
 # Override to relocate the database, e.g. for testing or a portable data path.
 # LEARNING_ENGINE_DB="/path/to/analytics.db"
 ```
+
+> The pre-`LLM__` names (`LOCAL_AI_MODEL`/`LOCAL_AI_HOST`/`LOCAL_AI_PORT` and
+> `USE_LOCAL_AI`/`USE_GOOGLE_AI`/`USE_OPENAI`) are still honored, so existing `.env` files keep
+> working — but the prefixed names above take precedence and are the ones to use going forward.
 
 ### Runtime Configuration
 - 🔑 **API Keys**: Enter directly in the app sidebar (used for the current session)
