@@ -281,7 +281,11 @@ def _quiz_insights(view: AnalyticsView) -> None:
         st.subheader("📚 Performance by Topic")
         topic_df = pd.DataFrame(
             [{"Topic": k, "Performance": v} for k, v in topic_performance.items()]
-        ).sort_values("Performance")
+            # Descending, because plotly draws the FIRST row at the bottom of a
+            # horizontal bar chart — so sorting descending puts the weakest topic
+            # at the top, matching the title. (update_yaxes(autorange="reversed")
+            # does not survive px.bar's categorical axis here.)
+        ).sort_values("Performance", ascending=False)
 
         fig_topic = px.bar(
             topic_df,
@@ -292,7 +296,13 @@ def _quiz_insights(view: AnalyticsView) -> None:
             color="Performance",
             color_continuous_scale="RdYlGn",
             range_color=(0, 100),
+            # A 0% topic has a zero-length bar, which reads as a broken chart;
+            # the text label keeps every row legible.
+            text=topic_df["Performance"].map(lambda v: f"{v:.0f}%"),
         )
+        fig_topic.update_traces(textposition="outside", cliponaxis=False)
+        # Leave room for the outside percentage labels.
+        fig_topic.update_xaxes(range=[0, 115])
         fig_topic.add_vline(x=70, line_dash="dash", annotation_text="Target: 70%")
         fig_topic.update_layout(height=max(240, 34 * len(topic_df)))
         st.plotly_chart(fig_topic, width="stretch")
