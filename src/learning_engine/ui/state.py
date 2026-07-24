@@ -53,10 +53,10 @@ def store() -> AnalyticsStore | None:
     """The persistent analytics store (built once; None if the DB can't be opened)."""
     if "analytics_store" not in st.session_state:
         from learning_engine.analytics.store import AnalyticsStore
-        from learning_engine.settings import AppConfig
+        from learning_engine.settings import get_settings
 
         try:
-            st.session_state.analytics_store = AnalyticsStore(AppConfig().DB_PATH)
+            st.session_state.analytics_store = AnalyticsStore(get_settings().app.db_path)
         except Exception:
             logging.getLogger("quiz_generator").exception("Could not open analytics store")
             st.session_state.analytics_store = None

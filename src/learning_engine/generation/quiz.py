@@ -27,12 +27,7 @@ from learning_engine.models import (
     Quiz,
     ScoringResult,
 )
-
-GENERATION_TEMPERATURE = 0.7
-GENERATION_MAX_TOKENS = 2000
-SCORING_TEMPERATURE = 0.3
-SCORING_MAX_TOKENS = 700
-SUMMARY_TEMPERATURE = 0.5
+from learning_engine.settings import get_settings
 
 
 def generate_quiz(
@@ -47,10 +42,15 @@ def generate_quiz(
     tf_count: int = 0,
 ) -> Quiz:
     """Generate a Multiple Choice / True or False / Mixed (MCQ + T/F) quiz."""
+    llm = get_settings().llm
     prompt = build_quiz_prompt(text, quiz_type, num_questions, difficulty, mcq_count, tf_count)
     result = generate_structured(
-        client, cfg.chat_model, prompt, MCQQuiz,
-        temperature=GENERATION_TEMPERATURE, max_tokens=GENERATION_MAX_TOKENS,
+        client,
+        cfg.chat_model,
+        prompt,
+        MCQQuiz,
+        temperature=llm.generation_temperature,
+        max_tokens=llm.generation_max_tokens,
     )
     return Quiz(questions=list(result.questions))
 
@@ -63,10 +63,15 @@ def generate_open_ended(
     difficulty: str = "Standard",
 ) -> Quiz:
     """Generate open-ended questions with marking schemes."""
+    llm = get_settings().llm
     prompt = build_open_ended_prompt(text, num_questions, difficulty)
     result = generate_structured(
-        client, cfg.chat_model, prompt, OpenEndedQuiz,
-        temperature=GENERATION_TEMPERATURE, max_tokens=GENERATION_MAX_TOKENS,
+        client,
+        cfg.chat_model,
+        prompt,
+        OpenEndedQuiz,
+        temperature=llm.generation_temperature,
+        max_tokens=llm.generation_max_tokens,
     )
     return Quiz(questions=list(result.questions))
 
@@ -82,8 +87,14 @@ def generate_mixed(
 ) -> Quiz:
     """Generate a full mix of MCQ, T/F, and open-ended questions."""
     traditional = generate_quiz(
-        client, cfg, text, "Mixed (MCQ + T/F)", mcq_count + tf_count, difficulty,
-        mcq_count=mcq_count, tf_count=tf_count,
+        client,
+        cfg,
+        text,
+        "Mixed (MCQ + T/F)",
+        mcq_count + tf_count,
+        difficulty,
+        mcq_count=mcq_count,
+        tf_count=tf_count,
     )
     open_ended = generate_open_ended(client, cfg, text, open_count, difficulty)
     return Quiz(questions=list(traditional.questions) + list(open_ended.questions))
@@ -103,11 +114,16 @@ def score_open_ended(
             percentage=0,
             overall_feedback="No answer provided.",
         )
+    llm = get_settings().llm
     prompt = build_scoring_prompt(question, user_answer)
     try:
         result = generate_structured(
-            client, cfg.scoring_model, prompt, ScoringResult,
-            temperature=SCORING_TEMPERATURE, max_tokens=SCORING_MAX_TOKENS,
+            client,
+            cfg.scoring_model,
+            prompt,
+            ScoringResult,
+            temperature=llm.scoring_temperature,
+            max_tokens=llm.scoring_max_tokens,
         )
     except GenerationFailed:
         return fallback_scoring(question, user_answer)
@@ -129,9 +145,7 @@ def fallback_scoring(question: OpenEndedQuestion, user_answer: str) -> ScoringRe
     total_keywords = 0
     for criterion in question.marking_scheme:
         total_keywords += len(criterion.keywords)
-        keyword_hits += sum(
-            1 for kw in criterion.keywords if kw.lower() in user_answer.lower()
-        )
+        keyword_hits += sum(1 for kw in criterion.keywords if kw.lower() in user_answer.lower())
     keyword_ratio = keyword_hits / max(total_keywords, 1)
     final = (base_score * 0.3 + keyword_ratio * 0.7) * total_marks
 
@@ -151,6 +165,6 @@ def summarize(client: OpenAI, cfg: ProviderConfig, text: str) -> str:
     resp = client.chat.completions.create(
         model=cfg.chat_model,
         messages=[{"role": "user", "content": build_summarize_prompt(text)}],
-        temperature=SUMMARY_TEMPERATURE,
+        temperature=get_settings().llm.summary_temperature,
     )
     return (resp.choices[0].message.content or "").strip()

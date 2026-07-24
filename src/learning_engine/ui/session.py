@@ -10,9 +10,10 @@ JSON, and because cloud detection was always true it never actually ran
 (BUG-4), so nothing is lost by removing it.
 """
 
-import os
-
 import streamlit as st
+
+from learning_engine.llm.providers import DISPLAY_NAMES, Provider, ProviderConfig, health_check
+from learning_engine.settings import get_settings
 
 
 class SessionManager:
@@ -20,18 +21,9 @@ class SessionManager:
 
     def __init__(self):
         """Initialize session manager."""
-        self.is_cloud_deployment = self._detect_cloud_deployment()
+        self.settings = get_settings()
+        self.is_cloud_deployment = self.settings.app.deployed
         self._init_session_state()
-
-    def _detect_cloud_deployment(self) -> bool:
-        """Detect cloud deployment via an explicit env var.
-
-        Set DEPLOYED=true in the hosting environment (e.g. as a Streamlit Cloud
-        secret). Attribute-sniffing st.secrets is unreliable: the object exists
-        in every modern Streamlit install, local or cloud, so the old check was
-        always true on a laptop (BUG-4).
-        """
-        return os.getenv("DEPLOYED", "").lower() == "true"
 
     def _init_session_state(self):
         """Initialize session state variables."""
@@ -41,10 +33,7 @@ class SessionManager:
 
         # Local AI model selection
         if "selected_local_model" not in st.session_state:
-            # Initialize with default model from config
-            from learning_engine.settings import LocalAIConfig
-
-            st.session_state.selected_local_model = LocalAIConfig().MODEL_NAME
+            st.session_state.selected_local_model = self.settings.llm.ollama.chat_model
 
         # API Keys
         if "api_keys" not in st.session_state:
@@ -55,35 +44,24 @@ class SessionManager:
             st.session_state.provider_status = {}
 
     def _get_default_provider(self) -> str:
-        """Determine default AI provider based on availability."""
-        # Honor the explicit USE_* flags from .env, then fall back to a key.
-        if os.getenv("USE_LOCAL_AI", "false").lower() == "true":
-            return "Local AI (Ollama)"
-        if os.getenv("USE_GOOGLE_AI", "false").lower() == "true":
-            return "Google AI"
-        if os.getenv("USE_OPENAI", "false").lower() == "true" or os.getenv("OPENAI_API_KEY"):
-            return "OpenAI"
-        return "Local AI (Ollama)"  # Default fallback
+        """The display name of the configured default provider (LLM__DEFAULT_PROVIDER)."""
+        return DISPLAY_NAMES[Provider(self.settings.llm.default_provider)]
 
     def _load_saved_api_keys(self) -> dict[str, str]:
-        """Load API keys from Streamlit secrets (when deployed) and environment."""
-        api_keys = {
-            "openai": "",
-            "google_ai": "",
-        }
+        """Load API keys from Streamlit secrets (when deployed) and settings."""
+        api_keys = {"openai": "", "google_ai": ""}
 
         # In cloud deployments, prioritize Streamlit secrets
         if self.is_cloud_deployment:
             try:
-                if hasattr(st, "secrets"):
-                    api_keys["openai"] = st.secrets.get("OPENAI_API_KEY", "")
-                    api_keys["google_ai"] = st.secrets.get("GOOGLE_AI_API_KEY", "")
+                api_keys["openai"] = st.secrets.get("OPENAI_API_KEY", "")
+                api_keys["google_ai"] = st.secrets.get("GOOGLE_AI_API_KEY", "")
             except Exception:
                 pass  # Secrets not available or not configured
 
-        # Fallback to environment variables
-        api_keys["openai"] = api_keys["openai"] or os.getenv("OPENAI_API_KEY", "")
-        api_keys["google_ai"] = api_keys["google_ai"] or os.getenv("GOOGLE_AI_API_KEY", "")
+        # Fall back to the environment (via settings)
+        api_keys["openai"] = api_keys["openai"] or self.settings.llm.openai_api_key
+        api_keys["google_ai"] = api_keys["google_ai"] or self.settings.llm.google_api_key
 
         return api_keys
 
@@ -119,11 +97,9 @@ class SessionManager:
 
     def _check_ollama_availability(self) -> tuple[bool, str]:
         """Check whether the local Ollama server is running and has models."""
-        from learning_engine.llm.providers import Provider, ProviderConfig, health_check
-
         cfg = ProviderConfig(
             provider=Provider.OLLAMA,
-            base_url="http://127.0.0.1:11434",
+            base_url=self.settings.llm.ollama.base_url,
             api_key="ollama",
             chat_model="",
             scoring_model="",
@@ -132,8 +108,7 @@ class SessionManager:
 
     def update_provider_status(self):
         """Update status of all providers."""
-        providers = ["Local AI (Ollama)", "Google AI", "OpenAI"]
-        for provider in providers:
+        for provider in DISPLAY_NAMES.values():
             available, message = self.check_provider_availability(provider)
             st.session_state.provider_status[provider] = {
                 "available": available,
@@ -189,7 +164,7 @@ class SessionManager:
 
         # Create options with status indicators
         provider_options = []
-        for provider in ["Local AI (Ollama)", "Google AI", "OpenAI"]:
+        for provider in DISPLAY_NAMES.values():
             status = st.session_state.provider_status.get(provider, {})
             if status.get("available", False):
                 indicator = "✅"

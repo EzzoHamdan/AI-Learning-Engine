@@ -11,7 +11,7 @@ import streamlit as st
 
 from learning_engine.generation import quiz as quiz_gen
 from learning_engine.models import MCQQuestion, OpenEndedQuestion
-from learning_engine.settings import DIFFICULTY_CONFIG, SCORING_CONFIG
+from learning_engine.ui import difficulty as difficulty_ui
 from learning_engine.ui import state
 from learning_engine.ui.providers import ActiveProvider
 
@@ -111,7 +111,7 @@ def display_results(questions: list[Question], user_answers: dict[int, str]) -> 
     total_open_ended_marks = results.get("total_open_ended_marks", 0)
     earned_open_ended_marks = results.get("earned_open_ended_marks", 0)
     overall_percentage = results.get("overall_percentage", 0)
-    emoji = DIFFICULTY_CONFIG[difficulty]["emoji"]
+    emoji = difficulty_ui.emoji(difficulty)
 
     if total_traditional and total_open_ended_marks:
         trad_pct = (traditional_correct / total_traditional) * 100
@@ -140,20 +140,8 @@ def display_results(questions: list[Question], user_answers: dict[int, str]) -> 
         )
 
     # Score interpretation
-    scoring_config = SCORING_CONFIG.get(difficulty, SCORING_CONFIG["Standard"])
-    for level, (threshold, message) in scoring_config.items():
-        if level == "default":
-            continue
-        if overall_percentage >= threshold:
-            if level in ("excellent", "good"):
-                st.success(message)
-            elif level == "fair":
-                st.info(message)
-            else:
-                st.warning(message)
-            break
-    else:
-        st.warning(scoring_config["default"][1])
+    kind, message = difficulty_ui.band(difficulty, overall_percentage)
+    {"success": st.success, "info": st.info, "warning": st.warning}[kind](message)
 
     # Detailed review
     st.subheader("📝 Detailed Review")

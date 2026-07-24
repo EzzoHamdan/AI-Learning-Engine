@@ -1,230 +1,277 @@
-"""Configuration settings for the Quiz Generator application."""
+"""The single source of configuration (architecture rule R4).
+
+Phases 3-6 each consumed part of the old `config.py`, leaving behind dead
+dataclasses (an OpenAI section pinned to `gpt-3.5-turbo`, a second copy of the
+Ollama health probe, a fourth copy of the difficulty instructions) while the
+values that *are* live drifted back into literals scattered across the code.
+This module ends that: every tunable number, model name, host, and path is
+declared here once, typed, and overridable from the environment.
+
+Layout
+------
+    Settings
+    ├── llm   → LLMSettings   (env prefix `LLM__`)   provider models, temperatures, timeouts
+    ├── quiz  → QuizSettings  (env prefix `QUIZ__`)  question counts, thresholds, upload limit
+    └── app   → AppSettings   (env prefix `APP__`)   title, debug, deployed flag, db path
+
+Nested provider settings use `__` as the separator, so the Ollama chat model is
+`LLM__OLLAMA__CHAT_MODEL`. A handful of conventional names (`OPENAI_API_KEY`,
+`GOOGLE_AI_API_KEY`, `DEBUG`, `DEPLOYED`, `LEARNING_ENGINE_DB`) keep working
+unprefixed, and `_LEGACY_OLLAMA_ENV` / `_legacy_default_provider` keep
+pre-Phase-7 `.env` files working. See `.env.example` for the full list.
+
+This module must not import Streamlit (architecture rule R1).
+"""
+
+from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
+from typing import Any, Literal
 
 from dotenv import load_dotenv
+from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Load environment variables from .env file
+# `.env` is loaded into os.environ (not just handed to pydantic) because the
+# legacy-name shims below read it with os.getenv, and because it is what the
+# rest of the process — including Streamlit itself — has always seen.
 load_dotenv()
 
+ProviderName = Literal["ollama", "google", "openai"]
 
-@dataclass
-class QuizConfig:
-    """Quiz generation configuration."""
-
-    MIN_QUESTIONS: int = 3
-    MAX_QUESTIONS: int = 15
-    DEFAULT_QUESTIONS: int = 5
-    SUPPORTED_FILE_TYPES: list[str] = None
-    MAX_TEXT_LENGTH: int = 10000
-    SUMMARY_THRESHOLD: int = 5000  # Increased from 3000 to reduce API calls
-    MAX_UPLOAD_MB: int = 50  # Reject uploads larger than this (matches README)
-
-    # Open-ended question configuration
-    MIN_OPEN_ENDED_WORDS: int = 10
-    MAX_OPEN_ENDED_WORDS: int = 200
-    OPEN_ENDED_SCORING_POINTS: list[int] = None
-
-    def __post_init__(self):
-        if self.SUPPORTED_FILE_TYPES is None:
-            self.SUPPORTED_FILE_TYPES = ["pdf", "docx", "pptx"]
-        if self.OPEN_ENDED_SCORING_POINTS is None:
-            self.OPEN_ENDED_SCORING_POINTS = [2, 3, 4, 5]  # Available point values
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# Repo checkout first, then the working directory (which wins if both exist).
+_ENV_FILES = (_PROJECT_ROOT / ".env", Path(".env"))
 
 
-@dataclass
-class OpenAIConfig:
-    """OpenAI API configuration."""
-
-    MODEL: str = "gpt-3.5-turbo"
-    TEMPERATURE: float = 0.7
-    SUMMARY_TEMPERATURE: float = 0.5
-    MAX_TOKENS: int = 2000
-
-    # Open-ended scoring configuration - still use gpt-4 for accuracy when available
-    SCORING_MODEL: str = "gpt-4o-mini"  # More cost-effective than gpt-4
-    SCORING_TEMPERATURE: float = 0.3
-    SCORING_MAX_TOKENS: int = 500
-
-    @property
-    def api_key(self) -> str:
-        """Get API key from environment."""
-        return os.getenv("OPENAI_API_KEY", "")
-
-    @property
-    def is_configured(self) -> bool:
-        """Check if API key is configured."""
-        return bool(self.api_key)
-
-
-@dataclass
-class GoogleAIConfig:
-    """Google AI (Gemini) API configuration."""
-
-    CHAT_MODEL: str = "gemini-2.5-flash"  # Free tier available (1.5-flash retired Sep 2025)
-    SCORING_MODEL: str = "gemini-2.5-flash"  # Same model for consistency
-    TEMPERATURE: float = 0.7
-    SUMMARY_TEMPERATURE: float = 0.5
-    MAX_TOKENS: int = 2000
-
-    # Scoring configuration
-    SCORING_TEMPERATURE: float = 0.3
-    SCORING_MAX_TOKENS: int = 500
-
-    @property
-    def api_key(self) -> str:
-        """Get API key from environment."""
-        return os.getenv("GOOGLE_AI_API_KEY", "")
-
-    @property
-    def is_configured(self) -> bool:
-        """Check if API key is configured."""
-        return bool(self.api_key)
-
-
-@dataclass
-class LocalAIConfig:
-    """Local AI (Ollama) configuration with smart defaults."""
-
-    # User-configurable settings
-    MODEL_NAME: str = os.getenv("LOCAL_AI_MODEL", "gemma2:2b")
-    HOST: str = os.getenv("LOCAL_AI_HOST", "127.0.0.1")
-    PORT: str = os.getenv("LOCAL_AI_PORT", "11434")
-
-    # Auto-generated settings
-    @property
-    def BASE_URL(self) -> str:
-        """Auto-generate base URL from host and port."""
-        return f"http://{self.HOST}:{self.PORT}/v1"
-
-    # Model settings
-    TEMPERATURE: float = 0.7
-    SUMMARY_TEMPERATURE: float = 0.5
-    MAX_TOKENS: int = 2000
-
-    # Scoring configuration
-    SCORING_TEMPERATURE: float = 0.3
-    SCORING_MAX_TOKENS: int = 500
-
-    # Context window configuration
-    CONTEXT_LENGTH: int = 4096
-
-    @property
-    def is_available(self) -> bool:
-        """Check if local AI server is available."""
-        try:
-            import requests
-
-            # Health check without /v1 suffix
-            health_url = f"http://{self.HOST}:{self.PORT}/api/tags"
-            response = requests.get(health_url, timeout=3)
-            return response.status_code == 200
-        except:
-            return False
-
-    @property
-    def is_configured(self) -> bool:
-        """Local AI is considered configured if it's available."""
-        return self.is_available
-
-
-@dataclass
-class AppConfig:
-    """Main application configuration with smart provider detection."""
-
-    APP_TITLE: str = "📚 AI Interactive Quiz Generator"
-    PAGE_ICON: str = "📚"
-    LAYOUT: str = "wide"
-
-    # Environment variables with sensible defaults
-    DEBUG_MODE: bool = os.getenv("DEBUG", "false").lower() == "true"
-
-    # Where persistent analytics live (survives browser refresh; overridable for tests).
-    DB_PATH: str = os.getenv(
-        "LEARNING_ENGINE_DB", str(Path.home() / ".learning_engine" / "analytics.db")
+def _config(prefix: str) -> SettingsConfigDict:
+    """Shared settings config; only the env prefix differs per section."""
+    return SettingsConfigDict(
+        env_prefix=prefix,
+        env_nested_delimiter="__",
+        env_file=_ENV_FILES,
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
+
+# --------------------------------------------------------------------------- #
+# LLM
+# --------------------------------------------------------------------------- #
+
+
+class OllamaSettings(BaseModel):
+    """Local Ollama server.
+
+    `base_url` never carries the OpenAI `/v1` suffix — `llm.client.make_client`
+    appends it, and `llm.providers` strips it for the `/api/tags` probe. Keeping
+    the stored form suffix-free is what removed the six `.replace('/v1', '')`
+    call sites in Phase 3.
+    """
+
+    host: str = "127.0.0.1"
+    port: int = 11434
+    chat_model: str = "gemma2:2b"
+    scoring_model: str = ""  # blank → reuse chat_model (one local model is the norm)
+
     @property
-    def available_providers(self) -> list[str]:
-        """Get list of available/configured AI providers."""
-        providers = []
+    def base_url(self) -> str:
+        return f"http://{self.host}:{self.port}"
 
-        # Check Local AI first (most user-friendly)
-        local_config = LocalAIConfig()
-        if local_config.is_available:
-            providers.append("Local AI (Ollama)")
-
-        # Check Google AI
-        google_config = GoogleAIConfig()
-        if google_config.is_configured:
-            providers.append("Google AI")
-
-        # Check OpenAI
-        openai_config = OpenAIConfig()
-        if openai_config.is_configured:
-            providers.append("OpenAI")
-
-        return providers
+    @property
+    def scoring(self) -> str:
+        return self.scoring_model or self.chat_model
 
 
-# Difficulty level configurations
-DIFFICULTY_CONFIG: dict[str, dict[str, str]] = {
-    "Standard": {
-        "emoji": "📚",
-        "description": "University-level questions testing comprehension and analysis",
-        "instructions": """
-        Create university-level questions that test comprehension, analysis, and application of the material.
-        Questions should be straightforward but require good understanding of the content.
-        Focus on key concepts, definitions, and logical connections.
-        """,
-    },
-    "Advanced": {
-        "emoji": "🎓",
-        "description": "Graduate-level questions requiring critical analysis",
-        "instructions": """
-        Create advanced questions that require synthesis, evaluation, and critical thinking.
-        Include scenario-based questions and complex problem-solving.
-        Test ability to apply knowledge in new contexts.
-        """,
-    },
-    "Extreme": {
-        "emoji": "🔥",
-        "description": "Expert-level questions with manipulative elements and edge cases",
-        "instructions": """
-        Create EXTREMELY challenging questions that require critical thinking, careful reading, and deep analysis.
-        Make questions manipulative and tricky - use subtle distinctions, edge cases, and nuanced interpretations.
-        Include questions that test ability to identify assumptions, logical fallacies, and hidden implications.
-        Use complex scenarios that require synthesis of multiple concepts.
-        """,
-    },
+class GoogleSettings(BaseModel):
+    """Gemini via its OpenAI-compatible endpoint (no separate SDK)."""
+
+    base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
+    chat_model: str = "gemini-2.5-flash"
+    scoring_model: str = "gemini-2.5-flash"
+
+    @property
+    def scoring(self) -> str:
+        return self.scoring_model or self.chat_model
+
+
+class OpenAISettings(BaseModel):
+    """OpenAI proper. `base_url = None` means the SDK default."""
+
+    base_url: str | None = None
+    chat_model: str = "gpt-4o-mini"
+    scoring_model: str = "gpt-4o-mini"
+
+    @property
+    def scoring(self) -> str:
+        return self.scoring_model or self.chat_model
+
+
+# Pre-Phase-7 env names → the nested Ollama field they now map to.
+_LEGACY_OLLAMA_ENV = {
+    "LOCAL_AI_MODEL": "chat_model",
+    "LOCAL_AI_HOST": "host",
+    "LOCAL_AI_PORT": "port",
 }
 
-# Scoring thresholds for different difficulty levels
-SCORING_CONFIG: dict[str, dict[str, tuple]] = {
-    "Standard": {
-        "excellent": (90, "🌟 Excellent! Outstanding performance!"),
-        "good": (80, "👍 Great job! Well done!"),
-        "fair": (70, "👌 Good work! Room for improvement."),
-        "needs_improvement": (60, "📚 Fair performance. Consider reviewing the material."),
-        "default": (0, "📖 Keep studying! You'll do better next time."),
-    },
-    "Advanced": {
-        "excellent": (85, "🏆 OUTSTANDING! Exceptional critical thinking!"),
-        "good": (75, "🌟 EXCELLENT! Strong analytical skills!"),
-        "fair": (65, "👍 GOOD! Solid understanding of complex concepts!"),
-        "needs_improvement": (50, "📚 DEVELOPING! These are challenging questions!"),
-        "default": (0, "💪 CHALLENGING! Advanced material takes time to master!"),
-    },
-    "Extreme": {
-        "excellent": (80, "🏆 LEGENDARY! You've mastered the most challenging content!"),
-        "good": (70, "🌟 OUTSTANDING! Excellent performance on extreme difficulty!"),
-        "fair": (60, "🔥 IMPRESSIVE! Strong performance on very challenging material!"),
-        "needs_improvement": (50, "👍 SOLID! Good grasp of complex concepts!"),
-        "default": (
-            0,
-            "💪 CHALLENGING! Don't worry - extreme questions are meant to push your limits!",
-        ),
-    },
-}
+
+def _legacy_default_provider() -> ProviderName | None:
+    """Read the old mutually-exclusive `USE_*` flags, if any are set."""
+    if os.getenv("USE_LOCAL_AI", "").lower() == "true":
+        return "ollama"
+    if os.getenv("USE_GOOGLE_AI", "").lower() == "true":
+        return "google"
+    if os.getenv("USE_OPENAI", "").lower() == "true" or os.getenv("OPENAI_API_KEY"):
+        return "openai"
+    return None
+
+
+class LLMSettings(BaseSettings):
+    """Provider models plus the generation knobs that used to be literals.
+
+    The temperatures and token limits below were module constants in
+    `generation/quiz.py` and `generation/materials.py`; the timeouts were
+    default arguments in `llm/client.py` and `llm/providers.py`.
+    """
+
+    model_config = _config("LLM__")
+
+    ollama: OllamaSettings = Field(default_factory=OllamaSettings)
+    google: GoogleSettings = Field(default_factory=GoogleSettings)
+    openai: OpenAISettings = Field(default_factory=OpenAISettings)
+
+    default_provider: ProviderName = "ollama"
+
+    # API keys keep their conventional, unprefixed names.
+    openai_api_key: str = Field("", validation_alias=AliasChoices("OPENAI_API_KEY"))
+    google_api_key: str = Field("", validation_alias=AliasChoices("GOOGLE_AI_API_KEY"))
+
+    generation_temperature: float = 0.7
+    scoring_temperature: float = 0.3
+    summary_temperature: float = 0.5
+    materials_temperature: float = 0.3  # lower → more consistent study materials
+
+    generation_max_tokens: int = 2000
+    scoring_max_tokens: int = 700
+
+    request_timeout: float = 120.0  # a full generation call
+    probe_timeout: float = 5.0  # a health check / model listing
+
+    @model_validator(mode="before")
+    @classmethod
+    def _fill_from_legacy_env(cls, data: Any) -> Any:
+        """Honor pre-Phase-7 env names when no `LLM__*` equivalent is set.
+
+        Keeps existing `.env` files working after the rename. New names win:
+        a legacy value is only used for a field the env source did not supply.
+        """
+        if not isinstance(data, dict):
+            return data
+
+        ollama = dict(data.get("ollama") or {})
+        for env_name, field_name in _LEGACY_OLLAMA_ENV.items():
+            value = os.getenv(env_name)
+            if value and field_name not in ollama:
+                ollama[field_name] = value
+        if ollama:
+            data["ollama"] = ollama
+
+        if "default_provider" not in data:
+            legacy = _legacy_default_provider()
+            if legacy:
+                data["default_provider"] = legacy
+
+        return data
+
+    def api_key(self, provider: ProviderName) -> str:
+        """The environment-supplied key for `provider` ("" for Ollama)."""
+        return {"openai": self.openai_api_key, "google": self.google_api_key}.get(provider, "")
+
+
+# --------------------------------------------------------------------------- #
+# Quiz
+# --------------------------------------------------------------------------- #
+
+
+class QuizSettings(BaseSettings):
+    """Limits and thresholds for quiz generation and document handling."""
+
+    model_config = _config("QUIZ__")
+
+    min_questions: int = 3
+    max_questions: int = 15
+    default_questions: int = 5
+
+    # Documents longer than this are summarized before generation.
+    summary_threshold: int = 5000
+    max_upload_mb: int = 50
+
+    # JSON-encoded when set from the environment, e.g. QUIZ__SUPPORTED_FILE_TYPES='["pdf"]'
+    supported_file_types: tuple[str, ...] = ("pdf", "docx", "pptx")
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_mb * 1024 * 1024
+
+
+# --------------------------------------------------------------------------- #
+# App
+# --------------------------------------------------------------------------- #
+
+
+def _default_db_path() -> Path:
+    return Path.home() / ".learning_engine" / "analytics.db"
+
+
+class AppSettings(BaseSettings):
+    """Presentation and deployment settings."""
+
+    model_config = _config("APP__")
+
+    title: str = "📚 AI Interactive Quiz & Study Materials Generator"
+    page_icon: str = "📚"
+    layout: str = "wide"
+
+    debug: bool = Field(False, validation_alias=AliasChoices("APP__DEBUG", "DEBUG"))
+
+    # Set DEPLOYED=true when hosting (e.g. Streamlit Cloud). Sniffing st.secrets
+    # was unreliable — the object exists locally too, so the old check was always
+    # true on a laptop (BUG-4).
+    deployed: bool = Field(False, validation_alias=AliasChoices("APP__DEPLOYED", "DEPLOYED"))
+
+    db_path: Path = Field(
+        default_factory=_default_db_path,
+        validation_alias=AliasChoices("APP__DB_PATH", "LEARNING_ENGINE_DB"),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Access
+# --------------------------------------------------------------------------- #
+
+
+class Settings(BaseModel):
+    """The whole configuration tree; reach it through `get_settings()`."""
+
+    llm: LLMSettings
+    quiz: QuizSettings
+    app: AppSettings
+
+
+@lru_cache(maxsize=1)
+def get_settings() -> Settings:
+    """Return the process-wide settings, built once on first use.
+
+    Cached rather than constructed at import time: nothing is read from the
+    environment until something actually asks (rule R1's sibling — no
+    import-time side effects beyond loading `.env`).
+    """
+    return Settings(llm=LLMSettings(), quiz=QuizSettings(), app=AppSettings())
+
+
+def reload_settings() -> Settings:
+    """Rebuild settings from the current environment (used by tests)."""
+    get_settings.cache_clear()
+    return get_settings()

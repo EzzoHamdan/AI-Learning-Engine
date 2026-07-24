@@ -12,8 +12,9 @@ from typing import Any
 import streamlit as st
 from streamlit.runtime.uploaded_file_manager import UploadedFile
 
-from learning_engine.llm.providers import list_ollama_models
-from learning_engine.settings import LocalAIConfig, QuizConfig
+from learning_engine.llm.providers import DISPLAY_NAMES, Provider, list_ollama_models
+from learning_engine.settings import get_settings
+from learning_engine.ui import difficulty as difficulty_ui
 from learning_engine.ui.session import SessionManager
 
 QUIZ_TYPES = [
@@ -64,8 +65,9 @@ def render(session_manager: SessionManager) -> GenerationRequest:
 
         st.markdown("---")
 
+        file_types = list(get_settings().quiz.supported_file_types)
         uploaded_file = st.file_uploader(
-            "Upload PDF, Word, or PPTX file", type=["pdf", "docx", "pptx"]
+            f"Upload {', '.join(t.upper() for t in file_types)} file", type=file_types
         )
 
         generation_type = st.selectbox(
@@ -83,34 +85,33 @@ def render(session_manager: SessionManager) -> GenerationRequest:
         if uploaded_file:
             st.success("✅ File uploaded successfully!")
 
-        if st.session_state.ai_provider == "Local AI (Ollama)":
+        if st.session_state.ai_provider == DISPLAY_NAMES[Provider.OLLAMA]:
             _render_local_ai_status()
 
     return request
 
 
 def _render_quiz_options(request: GenerationRequest) -> None:
-    quiz_config = QuizConfig()
+    quiz_config = get_settings().quiz
 
     request.quiz_type = st.selectbox("Choose Quiz Type", QUIZ_TYPES)
     request.difficulty = st.selectbox(
         "Choose Difficulty Level",
-        ["Standard", "Advanced", "Extreme"],
+        list(difficulty_ui.LEVELS),
         index=0,  # Default to Standard
-        help=(
-            "Standard: University-level | Advanced: Graduate-level | "
-            "Extreme: Expert-level with tricky elements"
-        ),
+        help=difficulty_ui.selector_help(),
     )
 
-    cloud_scoring = st.session_state.ai_provider not in ["Local AI (Ollama)", "Google AI"]
+    # Only the paid provider makes extra scoring calls worth warning about.
+    paid_scoring = st.session_state.ai_provider == DISPLAY_NAMES[Provider.OPENAI]
+    scoring_model = get_settings().llm.openai.scoring
 
     if request.quiz_type == "Open-ended Questions":
         request.num_questions = st.slider("Number of Questions", min_value=2, max_value=5, value=3)
-        if cloud_scoring:
+        if paid_scoring:
             st.warning(
-                "💡 Open-ended questions use gpt-4o-mini for scoring and may increase API "
-                "costs. Each answer requires an additional AI evaluation."
+                f"💡 Open-ended questions use {scoring_model} for scoring and may increase "
+                "API costs. Each answer requires an additional AI evaluation."
             )
     elif request.quiz_type == "Complete Mix (All Types)":
         st.write("**Question Distribution:**")
@@ -119,17 +120,17 @@ def _render_quiz_options(request: GenerationRequest) -> None:
         request.open_count = st.slider("Open-ended", min_value=1, max_value=3, value=1)
         request.num_questions = request.mcq_count + request.tf_count + request.open_count
         st.info(f"Total questions: {request.num_questions}")
-        if request.open_count > 0 and cloud_scoring:
+        if request.open_count > 0 and paid_scoring:
             st.warning(
-                f"⚠️ {request.open_count} open-ended question(s) will use gpt-4o-mini "
+                f"⚠️ {request.open_count} open-ended question(s) will use {scoring_model} "
                 "for scoring (higher cost)"
             )
     else:
         request.num_questions = st.slider(
             "Number of Questions",
-            min_value=quiz_config.MIN_QUESTIONS,
-            max_value=quiz_config.MAX_QUESTIONS,
-            value=quiz_config.DEFAULT_QUESTIONS,
+            min_value=quiz_config.min_questions,
+            max_value=quiz_config.max_questions,
+            value=quiz_config.default_questions,
         )
 
 
@@ -206,24 +207,21 @@ def _render_material_options(request: GenerationRequest) -> None:
 
 def _render_local_ai_status() -> None:
     """Ollama server status + model picker (only shown for the local provider)."""
-    local_ai_config = LocalAIConfig()
+    ollama = get_settings().llm.ollama
 
     st.markdown("---")
     st.subheader("🏠 Local AI Status")
-    ollama_base_url = f"http://{local_ai_config.HOST}:{local_ai_config.PORT}"
-    available_models = list_ollama_models(ollama_base_url)
+    available_models = list_ollama_models(ollama.base_url)
     if not available_models:
         st.error("❌ Ollama server not running, or no models installed")
-        st.code("ollama serve\nollama pull gemma2:2b")
+        st.code(f"ollama serve\nollama pull {ollama.chat_model}")
         return
 
     st.success("✅ Ollama server running")
     if "selected_local_model" not in st.session_state:
-        # Default to config model if available, otherwise first available
+        # Default to the configured model if available, otherwise first available
         default_model = (
-            local_ai_config.MODEL_NAME
-            if local_ai_config.MODEL_NAME in available_models
-            else available_models[0]
+            ollama.chat_model if ollama.chat_model in available_models else available_models[0]
         )
         st.session_state.selected_local_model = default_model
 

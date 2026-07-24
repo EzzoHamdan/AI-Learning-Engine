@@ -88,9 +88,7 @@ def build_quiz_prompt(
     elif quiz_type == "True or False":
         composition = f"Generate exactly {num_questions} true/false questions. {_TF_FORMAT}"
     else:  # Multiple Choice
-        composition = (
-            f"Generate exactly {num_questions} multiple-choice questions. {_MCQ_FORMAT}"
-        )
+        composition = f"Generate exactly {num_questions} multiple-choice questions. {_MCQ_FORMAT}"
     return (
         f"{composition}\n\nDIFFICULTY LEVEL: {difficulty}\n{diff}\n"
         f"Include a brief explanation for each correct answer.\n\nContent:\n{text}"

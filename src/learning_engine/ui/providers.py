@@ -16,14 +16,13 @@ from openai import OpenAI
 
 from learning_engine.llm.client import ProviderUnavailable, make_client
 from learning_engine.llm.providers import (
-    GOOGLE_OPENAI_BASE_URL,
     Provider,
     ProviderConfig,
     health_check,
     list_ollama_models,
     provider_from_display,
 )
-from learning_engine.settings import GoogleAIConfig, LocalAIConfig, OpenAIConfig
+from learning_engine.settings import get_settings
 from learning_engine.ui.session import SessionManager
 
 
@@ -40,32 +39,31 @@ class ActiveProvider:
 
 def build_provider_config(provider: Provider, session_manager: SessionManager) -> ProviderConfig:
     """Assemble a ProviderConfig from settings defaults + session keys/model."""
+    llm = get_settings().llm
     if provider is Provider.OLLAMA:
-        local = LocalAIConfig()
-        model = st.session_state.get("selected_local_model", local.MODEL_NAME)
+        # The sidebar's model picker overrides the configured default.
+        model = st.session_state.get("selected_local_model", llm.ollama.chat_model)
         return ProviderConfig(
             provider=provider,
-            base_url=f"http://{local.HOST}:{local.PORT}",  # /v1 appended in make_client
+            base_url=llm.ollama.base_url,  # /v1 appended in make_client
             api_key="ollama",
             chat_model=model,
             scoring_model=model,
         )
     if provider is Provider.GOOGLE:
-        google = GoogleAIConfig()
         return ProviderConfig(
             provider=provider,
-            base_url=GOOGLE_OPENAI_BASE_URL,
+            base_url=llm.google.base_url,
             api_key=session_manager.get_api_key("Google AI"),
-            chat_model=google.CHAT_MODEL,
-            scoring_model=google.SCORING_MODEL,
+            chat_model=llm.google.chat_model,
+            scoring_model=llm.google.scoring,
         )
-    openai_cfg = OpenAIConfig()
     return ProviderConfig(
         provider=provider,
-        base_url=None,
+        base_url=llm.openai.base_url,
         api_key=session_manager.get_api_key("OpenAI"),
-        chat_model=openai_cfg.MODEL,
-        scoring_model=openai_cfg.SCORING_MODEL,
+        chat_model=llm.openai.chat_model,
+        scoring_model=llm.openai.scoring,
     )
 
 

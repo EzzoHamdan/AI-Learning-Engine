@@ -15,8 +15,7 @@ from enum import Enum
 
 import requests
 
-# Google exposes an OpenAI-compatible endpoint; no separate SDK needed.
-GOOGLE_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+from learning_engine.settings import get_settings
 
 
 class Provider(str, Enum):
@@ -69,10 +68,16 @@ def _tags_url(base_url: str) -> str:
     return f"{clean}/api/tags"
 
 
-def list_ollama_models(base_url: str, timeout: float = 5) -> list[str]:
-    """Return the model names available on an Ollama server (empty on failure)."""
+def list_ollama_models(base_url: str, timeout: float | None = None) -> list[str]:
+    """Return the model names available on an Ollama server (empty on failure).
+
+    `timeout` defaults to `LLM__PROBE_TIMEOUT`.
+    """
+    settings = get_settings().llm
     try:
-        resp = requests.get(_tags_url(base_url), timeout=timeout)
+        resp = requests.get(
+            _tags_url(base_url), timeout=settings.probe_timeout if timeout is None else timeout
+        )
         if resp.status_code == 200:
             return [m["name"] for m in resp.json().get("models", [])]
     except requests.RequestException:
@@ -80,16 +85,19 @@ def list_ollama_models(base_url: str, timeout: float = 5) -> list[str]:
     return []
 
 
-def health_check(cfg: ProviderConfig, timeout: float = 5) -> tuple[bool, str]:
+def health_check(cfg: ProviderConfig, timeout: float | None = None) -> tuple[bool, str]:
     """One health check for all providers.
 
     Ollama is probed over HTTP (`GET /api/tags`); cloud providers just need a
     key present. Returns (ok, human-readable message).
     """
+    settings = get_settings().llm
     if cfg.provider is Provider.OLLAMA:
-        base = cfg.base_url or "http://127.0.0.1:11434"
+        base = cfg.base_url or settings.ollama.base_url
         try:
-            resp = requests.get(_tags_url(base), timeout=timeout)
+            resp = requests.get(
+                _tags_url(base), timeout=settings.probe_timeout if timeout is None else timeout
+            )
         except requests.RequestException:
             return False, "Server not running"
         if resp.status_code != 200:

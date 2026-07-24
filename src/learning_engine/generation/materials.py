@@ -23,8 +23,13 @@ from learning_engine.models import (
     StudyPlan,
     Summary,
 )
+from learning_engine.settings import get_settings
 
-TEMPERATURE = 0.3  # lower for more consistent study materials
+
+def _temperature() -> float:
+    """Study materials run cooler than quizzes (LLM__MATERIALS_TEMPERATURE)."""
+    return get_settings().llm.materials_temperature
+
 
 _SUMMARY_INSTRUCTIONS = {
     "detailed": "Comprehensive, detailed summary covering all major topics with examples; 300-500 words.",
@@ -83,36 +88,48 @@ def _instr(mapping: dict[str, str], key: str, default: str) -> str:
     return mapping.get(key, mapping[default])
 
 
-def generate_summary(client: OpenAI, cfg: ProviderConfig, text: str, summary_type: str = "detailed") -> Summary:
+def generate_summary(
+    client: OpenAI, cfg: ProviderConfig, text: str, summary_type: str = "detailed"
+) -> Summary:
     prompt = (
         f"Create a {summary_type} summary of the content.\n"
         f"{_instr(_SUMMARY_INSTRUCTIONS, summary_type, 'detailed')}\n"
         f"Set summary_type to {summary_type!r}.\n\nContent:\n{text}"
     )
-    return generate_structured(client, cfg.chat_model, prompt, Summary, temperature=TEMPERATURE)
+    return generate_structured(client, cfg.chat_model, prompt, Summary, temperature=_temperature())
 
 
-def generate_cheat_sheet(client: OpenAI, cfg: ProviderConfig, text: str, format_type: str = "comprehensive") -> CheatSheet:
+def generate_cheat_sheet(
+    client: OpenAI, cfg: ProviderConfig, text: str, format_type: str = "comprehensive"
+) -> CheatSheet:
     prompt = (
         f"Create a study cheat sheet from the content.\n"
         f"{_instr(_CHEAT_INSTRUCTIONS, format_type, 'comprehensive')}\n"
         "Use clear sections with headings and bullet items; include key terms, any formulas, "
         f"and quick tips. Set format_type to {format_type!r}.\n\nContent:\n{text}"
     )
-    return generate_structured(client, cfg.chat_model, prompt, CheatSheet, temperature=TEMPERATURE)
+    return generate_structured(
+        client, cfg.chat_model, prompt, CheatSheet, temperature=_temperature()
+    )
 
 
-def generate_flashcards(client: OpenAI, cfg: ProviderConfig, text: str, card_count: int = 10, difficulty: str = "mixed") -> FlashcardDeck:
+def generate_flashcards(
+    client: OpenAI, cfg: ProviderConfig, text: str, card_count: int = 10, difficulty: str = "mixed"
+) -> FlashcardDeck:
     prompt = (
         f"Create exactly {card_count} study flashcards from the content.\n"
         f"{_instr(_FLASHCARD_INSTRUCTIONS, difficulty, 'mixed')}\n"
         "Each card has a focused question (front), a comprehensive answer (back), an optional "
         "hint, a difficulty (basic/intermediate/advanced), and a category.\n\nContent:\n{}"
     ).format(text)
-    return generate_structured(client, cfg.chat_model, prompt, FlashcardDeck, temperature=TEMPERATURE)
+    return generate_structured(
+        client, cfg.chat_model, prompt, FlashcardDeck, temperature=_temperature()
+    )
 
 
-def generate_outline(client: OpenAI, cfg: ProviderConfig, text: str, outline_depth: str = "detailed") -> Outline:
+def generate_outline(
+    client: OpenAI, cfg: ProviderConfig, text: str, outline_depth: str = "detailed"
+) -> Outline:
     prompt = (
         f"Create a structured study outline from the content.\n"
         f"{_instr(_OUTLINE_INSTRUCTIONS, outline_depth, 'detailed')}\n"
@@ -121,17 +138,19 @@ def generate_outline(client: OpenAI, cfg: ProviderConfig, text: str, outline_dep
         f"max_depth, study_sequence, and time_estimates. Set outline_depth to {outline_depth!r}.\n\n"
         f"Content:\n{text}"
     )
-    return generate_structured(client, cfg.chat_model, prompt, Outline, temperature=TEMPERATURE)
+    return generate_structured(client, cfg.chat_model, prompt, Outline, temperature=_temperature())
 
 
-def generate_key_terms(client: OpenAI, cfg: ProviderConfig, text: str, term_count: int = 15) -> KeyTerms:
+def generate_key_terms(
+    client: OpenAI, cfg: ProviderConfig, text: str, term_count: int = 15
+) -> KeyTerms:
     prompt = (
         f"Extract the {term_count} most important key terms from the content. For each term give a "
         "clear definition, the context it's used in, related terms, and an importance of "
         "high/medium/low. Also provide category groupings and study_suggestions.\n\n"
         f"Content:\n{text}"
     )
-    return generate_structured(client, cfg.chat_model, prompt, KeyTerms, temperature=TEMPERATURE)
+    return generate_structured(client, cfg.chat_model, prompt, KeyTerms, temperature=_temperature())
 
 
 # guide_type -> (summary_type, cheat_format, card_count, flashcard_difficulty, term_count)
@@ -143,7 +162,12 @@ _GUIDE_RECIPES = {
 
 
 def generate_study_guide(
-    client: OpenAI, cfg: ProviderConfig, text: str, guide_type: str = "comprehensive", *, generated_at: str = ""
+    client: OpenAI,
+    cfg: ProviderConfig,
+    text: str,
+    guide_type: str = "comprehensive",
+    *,
+    generated_at: str = "",
 ) -> StudyGuide:
     """Compose a full study guide. Component failures are recorded, not fatal."""
     summary_type, cheat_format, card_count, fc_difficulty, term_count = _GUIDE_RECIPES.get(

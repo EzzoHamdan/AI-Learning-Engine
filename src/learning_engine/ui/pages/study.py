@@ -16,7 +16,7 @@ from learning_engine.extraction import ExtractionError, extract_text
 from learning_engine.generation import materials as materials_gen
 from learning_engine.generation import quiz as quiz_gen
 from learning_engine.llm.client import GenerationFailed
-from learning_engine.settings import AppConfig, QuizConfig
+from learning_engine.settings import AppSettings, QuizSettings, get_settings
 from learning_engine.ui import sidebar, state
 from learning_engine.ui.components.materials import display_study_materials
 from learning_engine.ui.components.quiz_runner import display_quiz
@@ -34,14 +34,15 @@ def _extract_text_cached(data: bytes, file_type: str) -> str:
 def render() -> None:
     """Render the study page (called by st.navigation on every rerun)."""
     state.init_state()
-    app_config = AppConfig()
-    quiz_config = QuizConfig()
+    settings = get_settings()
+    app_config = settings.app
+    quiz_config = settings.quiz
 
     session_manager = SessionManager()
     request = sidebar.render(session_manager)
     active = resolve_active_provider(session_manager)
 
-    if app_config.DEBUG_MODE:
+    if app_config.debug:
         st.write("**Debug - Configuration Status:**")
         st.write(f"Selected Provider: {st.session_state.ai_provider}")
         st.write(f"Active Provider: {active.display_name}")
@@ -54,10 +55,10 @@ def render() -> None:
             "💡 Configure a working AI provider in the sidebar to generate quizzes "
             "and study materials."
         )
-    elif app_config.DEBUG_MODE:
+    elif app_config.debug:
         st.success(f"✅ Successfully initialized: {active.display_name}")
 
-    st.title("📚 AI Interactive Quiz & Study Materials Generator")
+    st.title(app_config.title)
 
     provider_emoji = {"Local AI (Ollama)": "🏠", "Google AI": "🆕"}.get(active.display_name, "⚡")
     st.info(
@@ -96,18 +97,18 @@ def render() -> None:
 def _handle_document_and_generation(
     request: GenerationRequest,
     active: ActiveProvider,
-    quiz_config: QuizConfig,
-    app_config: AppConfig,
+    quiz_config: QuizSettings,
+    app_config: AppSettings,
 ) -> None:
     """Extract text, summarize if needed, and offer the generate button."""
     uploaded_file = request.uploaded_file
 
     # Enforce the upload size limit before doing any work with the file
-    max_upload_bytes = quiz_config.MAX_UPLOAD_MB * 1024 * 1024
+    max_upload_bytes = quiz_config.max_upload_bytes
     if uploaded_file.size > max_upload_bytes:
         st.error(
             f"❌ File is {uploaded_file.size / (1024 * 1024):.1f}MB, which exceeds "
-            f"the {quiz_config.MAX_UPLOAD_MB}MB limit. Please upload a smaller file."
+            f"the {quiz_config.max_upload_mb}MB limit. Please upload a smaller file."
         )
         return
 
@@ -154,7 +155,7 @@ def _handle_document_and_generation(
         )
 
     # Handle summarization logic
-    needs_summarization = len(text) > quiz_config.SUMMARY_THRESHOLD and not state.text_summarized()
+    needs_summarization = len(text) > quiz_config.summary_threshold and not state.text_summarized()
 
     if needs_summarization and not state.summarization_in_progress():
         # Start summarization automatically
@@ -205,7 +206,7 @@ def _handle_document_and_generation(
             st.info("💡 **Quick Setup Guide:**")
             st.info(
                 "1. **Local AI**: Start Ollama server (`ollama serve`) and pull a model "
-                "(`ollama pull gemma2:2b`)"
+                f"(`ollama pull {get_settings().llm.ollama.chat_model}`)"
             )
             st.info("2. **Google AI**: Enter your Google AI API key in the sidebar")
             st.info("3. **OpenAI**: Enter your OpenAI API key in the sidebar")
@@ -227,7 +228,7 @@ def _summarize_text(active: ActiveProvider, text: str) -> str:
 
 
 def _generate_quiz(
-    final_text: str, request: GenerationRequest, active: ActiveProvider, app_config: AppConfig
+    final_text: str, request: GenerationRequest, active: ActiveProvider, app_config: AppSettings
 ) -> None:
     """Generate a quiz and store it (as a Quiz model) in session state."""
     with st.spinner(f"🤖 Generating quiz using {active.display_name}..."):
@@ -277,12 +278,12 @@ def _generate_quiz(
             st.write(f"- AI Provider: {active.display_name}")
             st.write(f"- Quiz Type: {request.quiz_type}")
             st.write(f"- Text Length: {len(final_text)} characters")
-            if app_config.DEBUG_MODE:
+            if app_config.debug:
                 st.exception(e)
 
 
 def _generate_materials(
-    final_text: str, request: GenerationRequest, active: ActiveProvider, app_config: AppConfig
+    final_text: str, request: GenerationRequest, active: ActiveProvider, app_config: AppSettings
 ) -> None:
     """Generate a study-material model and store it in session state."""
     material_type = request.material_type
@@ -361,7 +362,7 @@ def _generate_materials(
             st.write(f"- AI Provider: {active.display_name}")
             st.write(f"- Material Type: {material_type}")
             st.write(f"- Text Length: {len(final_text)} characters")
-            if app_config.DEBUG_MODE:
+            if app_config.debug:
                 st.exception(e)
 
 
@@ -511,7 +512,8 @@ def _render_welcome(session_manager: SessionManager) -> None:
 
     # Local AI Setup Guide
     with st.expander("🏠 Local AI Setup Guide"):
-        st.markdown("""
+        ollama = get_settings().llm.ollama
+        st.markdown(f"""
         **Why use Local AI?**
         - ✅ **Completely Free** - No API costs ever
         - 🔐 **Private** - Your data never leaves your computer
@@ -525,8 +527,8 @@ def _render_welcome(session_manager: SessionManager) -> None:
         # 2. Start Ollama server
         ollama serve
 
-        # 3. Download Gemma 2B model (recommended for speed)
-        ollama pull gemma2:2b
+        # 3. Download the configured model
+        ollama pull {ollama.chat_model}
 
         # 4. Or download larger models for better quality
         ollama pull gemma2:9b
@@ -541,7 +543,7 @@ def _render_welcome(session_manager: SessionManager) -> None:
 
         **Troubleshooting:**
         - Ensure Ollama is running: `ollama list`
-        - Check server status: `curl http://localhost:[PORT]/api/tags`
+        - Check server status: `curl {ollama.base_url}/api/tags`
         - View logs: Check terminal where `ollama serve` is running
         """)
 

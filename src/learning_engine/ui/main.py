@@ -10,7 +10,7 @@ from __future__ import annotations
 import streamlit as st
 
 from learning_engine.logger import setup_logging
-from learning_engine.settings import AppConfig
+from learning_engine.settings import get_settings
 from learning_engine.ui.pages import analytics, study
 
 
@@ -22,12 +22,8 @@ def _init_logging():
 
 def run() -> None:
     """Launch the app: set page config, then hand control to st.navigation."""
-    app_config = AppConfig()
-    st.set_page_config(
-        page_title=app_config.APP_TITLE,
-        page_icon=app_config.PAGE_ICON,
-        layout=app_config.LAYOUT,
-    )
+    app = get_settings().app
+    st.set_page_config(page_title=app.title, page_icon=app.page_icon, layout=app.layout)
     _init_logging()
 
     pages = [
