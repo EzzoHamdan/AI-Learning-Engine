@@ -206,6 +206,9 @@ class AnalyticsTracker:
                     "difficulty_tag": metrics.analyze_question_difficulty(
                         question.get("question", "")
                     ),
+                    # Named by the model at generation time; "" for quizzes
+                    # generated before topic tagging existed.
+                    "topic": question.get("topic", "") or "",
                 }
             )
 

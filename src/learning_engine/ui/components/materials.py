@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import re
+
 import streamlit as st
 
+from learning_engine.export import material_to_markdown
 from learning_engine.models import (
     CheatSheet,
     KeyTerm,
@@ -31,6 +34,33 @@ def display_study_materials(materials_data, material_type: str) -> None:
         display_outline(materials_data)
     elif material_type == "Key Terms":
         display_key_terms(materials_data)
+
+    render_markdown_download(materials_data, material_type)
+
+
+def _slug(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-") or "study-material"
+
+
+def render_markdown_download(material: object, material_type: str) -> None:
+    """Offer the generated material as a Markdown file.
+
+    Generated study material used to live only in the browser session — closing
+    the tab lost it. Markdown keeps the structure and pastes into any notes app.
+    """
+    try:
+        markdown = material_to_markdown(material)
+    except TypeError:
+        return  # No renderer for this model; nothing to offer.
+
+    st.markdown("---")
+    st.download_button(
+        "⬇️ Download as Markdown",
+        data=markdown,
+        file_name=f"{_slug(material_type)}.md",
+        mime="text/markdown",
+        help="Save this material as a .md file you can keep, print, or paste into your notes.",
+    )
 
 
 def display_complete_study_guide(guide: StudyGuide) -> None:

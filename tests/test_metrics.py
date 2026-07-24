@@ -107,3 +107,100 @@ def test_strength_weakness_analysis_flags_strong_and_weak_types():
     assert any("mcq" in s for s in analysis["strengths"])
     assert any("open_ended" in w for w in analysis["weaknesses"])
     assert analysis["recommendations"]  # non-empty
+
+
+# --------------------------------------------------------------------------- #
+# Topic analysis
+# --------------------------------------------------------------------------- #
+
+
+def _question(topic: str, correct: bool, qtype: str = "mcq", tag: str = "basic") -> dict:
+    return {
+        "question_type": qtype,
+        "correct": correct,
+        "difficulty_tag": tag,
+        "topic": topic,
+    }
+
+
+def test_weak_topic_is_reported_by_name():
+    """The Phase 9 payoff: weaknesses name a concept, not a question format."""
+    results = [
+        {
+            "questions": [
+                _question("Calvin cycle", False),
+                _question("Calvin cycle", False),
+                _question("Light reactions", True),
+                _question("Light reactions", True),
+            ]
+        }
+    ]
+    analysis = metrics.strength_weakness_analysis(results)
+
+    assert any("Calvin cycle" in w for w in analysis["weaknesses"])
+    assert any("Light reactions" in s for s in analysis["strengths"])
+    assert analysis["topic_performance"]["Calvin cycle"] == 0
+    assert analysis["topic_performance"]["Light reactions"] == 100
+
+
+def test_weakest_topic_is_recommended_first():
+    results = [
+        {
+            "questions": [
+                _question("Osmosis", False),
+                _question("Osmosis", False),
+                _question("Mitosis", False),
+                _question("Mitosis", True),
+            ]
+        }
+    ]
+    recommendations = metrics.strength_weakness_analysis(results)["recommendations"]
+    assert "Osmosis" in recommendations[0]
+
+
+def test_a_single_attempt_is_not_enough_to_call_a_topic_weak():
+    """One missed question is noise; a pattern needs repetition."""
+    results = [{"questions": [_question("Osmosis", False), _question("Mitosis", True)]}]
+    analysis = metrics.strength_weakness_analysis(results)
+    assert not any("Osmosis" in w for w in analysis["weaknesses"])
+
+
+def test_untagged_questions_are_skipped_rather_than_bucketed():
+    """Pre-topic quizzes must not show up as a topic literally called ''."""
+    results = [{"questions": [_question("", False), _question("", False)]}]
+    analysis = metrics.strength_weakness_analysis(results)
+    assert analysis["topic_performance"] == {}
+    assert not any("needs review" in w for w in analysis["weaknesses"])
+
+
+def test_topics_accumulate_across_quizzes():
+    results = [
+        {"questions": [_question("Osmosis", True)]},
+        {"questions": [_question("Osmosis", False)]},
+    ]
+    assert metrics.strength_weakness_analysis(results)["topic_performance"]["Osmosis"] == 50
+
+
+def test_empty_history_still_returns_the_topic_key():
+    """Callers index topic_performance directly; it must always exist."""
+    assert metrics.strength_weakness_analysis([])["topic_performance"] == {}
+
+
+def test_strengths_lead_with_the_strongest_topic():
+    """Mirror of the weakness ordering — the two lists rank in opposite directions."""
+    results = [
+        {
+            "questions": [
+                _question("Osmosis", True),
+                _question("Osmosis", True),
+                _question("Osmosis", True),
+                _question("Osmosis", True),
+                _question("Mitosis", True),
+                _question("Mitosis", True),
+                _question("Mitosis", True),
+                _question("Mitosis", False),
+            ]
+        }
+    ]
+    strengths = metrics.strength_weakness_analysis(results)["strengths"]
+    assert "Osmosis" in strengths[0]  # 100% before Mitosis's 75%

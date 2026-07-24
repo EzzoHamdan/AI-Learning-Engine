@@ -25,6 +25,9 @@ class MCQQuestion(BaseModel):
     options: list[str] = Field(default_factory=list)
     correct_answer: str = ""
     explanation: str = ""
+    # The concept this question tests, named by the model at generation time.
+    # Analytics groups by it, so weaknesses read "Calvin cycle" not "mcq".
+    topic: str = ""
     type: Literal["mcq", "tf"] = "mcq"
 
 
@@ -41,6 +44,7 @@ class OpenEndedQuestion(BaseModel):
     total_marks: float = 0
     marking_scheme: list[MarkingCriterion] = Field(default_factory=list)
     model_answer: str = ""
+    topic: str = ""
     type: Literal["open_ended"] = "open_ended"
 
 

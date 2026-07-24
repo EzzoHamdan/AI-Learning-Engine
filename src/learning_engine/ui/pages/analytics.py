@@ -275,6 +275,33 @@ def _quiz_insights(view: AnalyticsView) -> None:
         for i, recommendation in enumerate(analysis["recommendations"], 1):
             st.info(f"{i}. {recommendation}")
 
+    # Topic breakdown — the actionable view: what to revise, not which format.
+    topic_performance = analysis.get("topic_performance", {})
+    if topic_performance:
+        st.subheader("📚 Performance by Topic")
+        topic_df = pd.DataFrame(
+            [{"Topic": k, "Performance": v} for k, v in topic_performance.items()]
+        ).sort_values("Performance")
+
+        fig_topic = px.bar(
+            topic_df,
+            x="Performance",
+            y="Topic",
+            orientation="h",  # topic names are long; horizontal keeps them readable
+            title="Accuracy by topic (weakest first)",
+            color="Performance",
+            color_continuous_scale="RdYlGn",
+            range_color=(0, 100),
+        )
+        fig_topic.add_vline(x=70, line_dash="dash", annotation_text="Target: 70%")
+        fig_topic.update_layout(height=max(240, 34 * len(topic_df)))
+        st.plotly_chart(fig_topic, width="stretch")
+    else:
+        st.info(
+            "📚 Topic breakdown appears once you complete a quiz generated with topic "
+            "tagging — every new quiz labels its questions automatically."
+        )
+
     # Performance breakdown charts
     if analysis["type_performance"]:
         st.subheader("📊 Performance by Question Type")

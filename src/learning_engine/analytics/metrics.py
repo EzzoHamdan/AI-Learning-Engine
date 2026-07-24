@@ -76,19 +76,31 @@ def calculate_learning_velocity(performance_over_time: list[dict]) -> dict:
     }
 
 
+# A topic needs at least this many attempts before it is called a strength or a
+# weakness — one missed question is noise, not a pattern.
+MIN_QUESTIONS_PER_TOPIC = 2
+
+
 def strength_weakness_analysis(detailed_results: list[dict]) -> dict:
     """Strengths/weaknesses/recommendations from per-question quiz results."""
     if not detailed_results:
-        return {"strengths": [], "weaknesses": [], "recommendations": []}
+        return {
+            "strengths": [],
+            "weaknesses": [],
+            "recommendations": [],
+            "topic_performance": {},
+        }
 
     type_performance: dict[str, dict[str, int]] = {}
     difficulty_performance: dict[str, dict[str, int]] = {}
+    topic_performance: dict[str, dict[str, int]] = {}
 
     for result in detailed_results:
         for question in result["questions"]:
             q_type = question["question_type"]
             difficulty = question["difficulty_tag"]
             is_correct = question["correct"]
+            topic = (question.get("topic") or "").strip()
 
             type_performance.setdefault(q_type, {"correct": 0, "total": 0})
             type_performance[q_type]["total"] += 1
@@ -100,6 +112,14 @@ def strength_weakness_analysis(detailed_results: list[dict]) -> dict:
             if is_correct:
                 difficulty_performance[difficulty]["correct"] += 1
 
+            # Untagged questions (pre-topic quizzes) are skipped rather than
+            # bucketed under a fake "unknown" topic that would then be reported.
+            if topic:
+                topic_performance.setdefault(topic, {"correct": 0, "total": 0})
+                topic_performance[topic]["total"] += 1
+                if is_correct:
+                    topic_performance[topic]["correct"] += 1
+
     type_percentages = {
         q_type: (stats["correct"] / stats["total"]) * 100 if stats["total"] else 0
         for q_type, stats in type_performance.items()
@@ -107,6 +127,10 @@ def strength_weakness_analysis(detailed_results: list[dict]) -> dict:
     difficulty_percentages = {
         difficulty: (stats["correct"] / stats["total"]) * 100 if stats["total"] else 0
         for difficulty, stats in difficulty_performance.items()
+    }
+    topic_percentages = {
+        topic: (stats["correct"] / stats["total"]) * 100 if stats["total"] else 0
+        for topic, stats in topic_performance.items()
     }
 
     strengths = []
@@ -133,12 +157,32 @@ def strength_weakness_analysis(detailed_results: list[dict]) -> dict:
                 f"Focus on building foundational knowledge for {difficulty} concepts"
             )
 
+    # Topics are the most actionable grouping: "revise the Calvin cycle" beats
+    # "practise more mcq questions", so they are collected separately and then
+    # prepended as a block — weakest first, and only for topics seen at least
+    # MIN_QUESTIONS_PER_TOPIC times, so one unlucky question is not a "weakness".
+    topic_strengths: list[str] = []
+    topic_weaknesses: list[str] = []
+    topic_recommendations: list[str] = []
+
+    ranked = sorted(topic_percentages.items(), key=lambda kv: kv[1])
+    for topic, percentage in ranked:
+        if topic_performance[topic]["total"] < MIN_QUESTIONS_PER_TOPIC:
+            continue
+        if percentage >= 80:
+            topic_strengths.append(f"Strong grasp of {topic} ({percentage:.0f}%)")
+        elif percentage < 60:
+            topic_weaknesses.append(f"{topic} needs review ({percentage:.0f}%)")
+            topic_recommendations.append(f"Review {topic} — {percentage:.0f}% correct so far")
+
+    # Strengths read best strongest-first; weaknesses weakest-first.
     return {
-        "strengths": strengths,
-        "weaknesses": weaknesses,
-        "recommendations": recommendations,
+        "strengths": topic_strengths[::-1] + strengths,
+        "weaknesses": topic_weaknesses + weaknesses,
+        "recommendations": topic_recommendations + recommendations,
         "type_performance": type_percentages,
         "difficulty_performance": difficulty_percentages,
+        "topic_performance": topic_percentages,
     }
 
 

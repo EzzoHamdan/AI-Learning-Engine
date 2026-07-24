@@ -204,8 +204,13 @@ class QuizSettings(BaseSettings):
     max_questions: int = 15
     default_questions: int = 5
 
-    # Documents longer than this are summarized before generation.
-    summary_threshold: int = 5000
+    # Documents longer than this are condensed before generation. Summarizing is
+    # LOSSY — questions can only cover what survives — so the threshold exists to
+    # avoid blowing the context window, not to save tokens. It was 3,000 characters
+    # (~750 tokens) when every provider was small; today's defaults hold two orders
+    # of magnitude more, so it now sits near the smallest context we support
+    # (~8k tokens) and most documents skip summarization entirely.
+    summary_threshold: int = 24000
     max_upload_mb: int = 50
 
     # JSON-encoded when set from the environment, e.g. QUIZ__SUPPORTED_FILE_TYPES='["pdf"]'

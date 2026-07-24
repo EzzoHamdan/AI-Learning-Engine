@@ -166,7 +166,12 @@ def _handle_document_and_generation(
     if needs_summarization and not state.summarization_in_progress():
         # Start summarization automatically
         state.set_summarization_in_progress(True)
-        st.info("📄 Large content detected. Summarizing automatically...")
+        st.info(
+            f"📄 This document is {len(text):,} characters, past the "
+            f"{quiz_config.summary_threshold:,}-character limit for a single request. "
+            "Condensing it first — questions can only cover what survives the summary. "
+            "Raise QUIZ__SUMMARY_THRESHOLD if your model has a larger context window."
+        )
 
         if not active.ok:
             st.warning("⚠️ No AI provider available for summarization. Using original text.")
@@ -183,9 +188,11 @@ def _handle_document_and_generation(
         st.info("🔄 Summarization in progress... Please wait.")
         st.stop()  # Prevent the rest of the UI from rendering
     elif state.text_summarized():
-        st.success(
-            f"✅ Content summarized (Original: {len(text):,} chars → "
-            f"Summary: {len(state.summarized_text()):,} chars)"
+        summarized = state.summarized_text()
+        kept = (len(summarized) / len(text) * 100) if text else 0
+        st.warning(
+            f"📝 Working from a summary: {len(text):,} chars → {len(summarized):,} chars "
+            f"({kept:.0f}% kept). Detail outside the summary cannot appear in questions."
         )
 
     # Determine which text to use for generation

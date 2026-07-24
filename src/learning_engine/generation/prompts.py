@@ -52,6 +52,15 @@ OPEN_ENDED_DIFFICULTY_INSTRUCTIONS: dict[str, str] = {
 }
 
 
+# Asked for on every question so analytics can report concepts, not question types.
+_TOPIC_INSTRUCTION = (
+    "Set each question's `topic` to the single specific concept it tests, as a short "
+    'noun phrase of 1-4 words taken from the content (e.g. "Calvin cycle", '
+    '"enzyme kinetics"). Reuse the exact same wording when several questions test '
+    'the same concept, and never use a generic label like "general" or "other".'
+)
+
+
 def _difficulty(instructions: dict[str, str], difficulty: str) -> str:
     return instructions.get(difficulty, instructions["Standard"])
 
@@ -91,7 +100,8 @@ def build_quiz_prompt(
         composition = f"Generate exactly {num_questions} multiple-choice questions. {_MCQ_FORMAT}"
     return (
         f"{composition}\n\nDIFFICULTY LEVEL: {difficulty}\n{diff}\n"
-        f"Include a brief explanation for each correct answer.\n\nContent:\n{text}"
+        f"Include a brief explanation for each correct answer.\n{_TOPIC_INSTRUCTION}\n"
+        f"\nContent:\n{text}"
     )
 
 
@@ -103,7 +113,7 @@ def build_open_ended_prompt(text: str, num_questions: int, difficulty: str) -> s
         "For each question: write a clear question requiring a written response; assign "
         "total_marks (2-5); break the marking scheme into criteria, each with its marks "
         "and a list of keywords to look for; and provide a model_answer. Set type to "
-        '"open_ended".\n\nContent:\n' + text
+        '"open_ended".\n' + _TOPIC_INSTRUCTION + "\n\nContent:\n" + text
     )
 
 

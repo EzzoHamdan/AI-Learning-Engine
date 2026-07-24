@@ -22,8 +22,18 @@ def store(tmp_path):
 
 def _questions():
     return [
-        {"question_type": "mcq", "correct": True, "difficulty_tag": "basic"},
-        {"question_type": "open_ended", "correct": False, "difficulty_tag": "high"},
+        {
+            "question_type": "mcq",
+            "correct": True,
+            "difficulty_tag": "basic",
+            "topic": "Calvin cycle",
+        },
+        {
+            "question_type": "open_ended",
+            "correct": False,
+            "difficulty_tag": "high",
+            "topic": "Light reactions",
+        },
     ]
 
 
@@ -55,6 +65,7 @@ def test_quiz_round_trip(store):
         "question_type": "mcq",
         "correct": True,
         "difficulty_tag": "basic",
+        "topic": "Calvin cycle",
     }
 
 
@@ -147,3 +158,138 @@ def test_export_and_reset(store):
     assert store.material_stats()["total_materials"] == 0
     assert store.flashcard_totals()["cards_viewed"] == 0
     assert store.active_days() == set()
+
+
+# --------------------------------------------------------------------------- #
+# Schema migration
+# --------------------------------------------------------------------------- #
+
+
+def test_topic_defaults_to_empty_when_the_caller_omits_it(store):
+    """Older callers (and pre-topic quizzes) must still record."""
+    store.record_quiz(
+        difficulty="Standard",
+        quiz_type="Multiple Choice",
+        total_questions=1,
+        correct=1,
+        score_pct=100.0,
+        questions=[{"question_type": "mcq", "correct": True, "difficulty_tag": "basic"}],
+    )
+    assert store.detailed_results()[0]["questions"][0]["topic"] == ""
+
+
+def test_a_pre_topic_database_is_migrated_in_place(tmp_path):
+    """A database created before `topic` existed must keep its rows and gain the column.
+
+    CREATE TABLE IF NOT EXISTS silently leaves an old table alone, so without an
+    explicit migration every read would fail on the missing column.
+    """
+    import sqlite3
+
+    db = tmp_path / "old.db"
+    conn = sqlite3.connect(db)
+    conn.executescript(
+        """
+        CREATE TABLE quiz_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL,
+            difficulty TEXT NOT NULL, quiz_type TEXT NOT NULL,
+            total_questions INTEGER NOT NULL, correct INTEGER NOT NULL,
+            score_pct REAL NOT NULL
+        );
+        CREATE TABLE question_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, quiz_id INTEGER NOT NULL,
+            qtype TEXT NOT NULL, correct INTEGER NOT NULL, difficulty_tag TEXT NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        "INSERT INTO quiz_results (ts, difficulty, quiz_type, total_questions, correct, "
+        "score_pct) VALUES ('2026-07-01T10:00:00+00:00', 'Standard', 'MCQ', 1, 1, 100.0)"
+    )
+    conn.execute(
+        "INSERT INTO question_results (quiz_id, qtype, correct, difficulty_tag) "
+        "VALUES (1, 'mcq', 1, 'basic')"
+    )
+    conn.commit()
+    conn.close()
+
+    migrated = AnalyticsStore(db)
+
+    # The pre-existing quiz survived, and its untagged question reads as untagged.
+    assert migrated.totals()["total_quizzes"] == 1
+    assert migrated.detailed_results()[0]["questions"][0]["topic"] == ""
+
+    # And new writes carry topics.
+    migrated.record_quiz(
+        difficulty="Advanced",
+        quiz_type="MCQ",
+        total_questions=1,
+        correct=1,
+        score_pct=100.0,
+        questions=[
+            {"question_type": "mcq", "correct": True, "difficulty_tag": "basic", "topic": "Osmosis"}
+        ],
+    )
+    topics = {q["topic"] for r in migrated.detailed_results() for q in r["questions"]}
+    assert topics == {"", "Osmosis"}
+
+
+def test_migration_is_idempotent(tmp_path):
+    """init() runs on every open, so a second pass must not fail or duplicate."""
+    db = tmp_path / "repeat.db"
+    AnalyticsStore(db)
+    again = AnalyticsStore(db)
+    again.init()
+    assert again.totals()["total_quizzes"] == 0
+
+
+# --------------------------------------------------------------------------- #
+# Spaced repetition
+# --------------------------------------------------------------------------- #
+
+
+def test_review_state_round_trips(store):
+    from datetime import date as _date
+
+    from learning_engine.analytics.scheduling import ReviewState
+
+    state = ReviewState(repetitions=3, interval_days=15, ease=2.36, due=_date(2026, 8, 8))
+    store.save_review("card-abc", state)
+
+    loaded = store.review_states(["card-abc"])["card-abc"]
+    assert loaded == state
+
+
+def test_saving_the_same_card_twice_updates_rather_than_duplicates(store):
+    from datetime import date as _date
+
+    from learning_engine.analytics.scheduling import ReviewState
+
+    store.save_review("card-abc", ReviewState(repetitions=1, interval_days=1))
+    store.save_review(
+        "card-abc", ReviewState(repetitions=2, interval_days=6, due=_date(2026, 8, 1))
+    )
+
+    states = store.review_states()
+    assert len(states) == 1
+    assert states["card-abc"].repetitions == 2
+
+
+def test_unreviewed_cards_are_simply_absent(store):
+    """Callers treat a missing key as a new card, so no placeholder row is written."""
+    assert store.review_states(["never-seen"]) == {}
+
+
+def test_review_states_with_no_filter_returns_everything(store):
+    from learning_engine.analytics.scheduling import ReviewState
+
+    store.save_review("a", ReviewState(repetitions=1))
+    store.save_review("b", ReviewState(repetitions=2))
+    assert set(store.review_states()) == {"a", "b"}
+
+
+def test_filtering_by_an_empty_deck_does_not_return_the_whole_table(store):
+    from learning_engine.analytics.scheduling import ReviewState
+
+    store.save_review("a", ReviewState(repetitions=1))
+    assert store.review_states([]) == {}

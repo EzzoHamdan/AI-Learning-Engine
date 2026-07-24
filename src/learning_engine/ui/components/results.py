@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import streamlit as st
 
+from learning_engine.export import quiz_to_markdown
 from learning_engine.generation import quiz as quiz_gen
-from learning_engine.models import MCQQuestion, OpenEndedQuestion
+from learning_engine.models import MCQQuestion, OpenEndedQuestion, Quiz
 from learning_engine.ui import difficulty as difficulty_ui
 from learning_engine.ui import state
 from learning_engine.ui.providers import ActiveProvider
@@ -202,6 +203,18 @@ def display_results(questions: list[Question], user_answers: dict[int, str]) -> 
                 else:
                     st.error("Incorrect 😔")
 
-    if st.button("Take Quiz Again"):
-        state.reset_quiz_progress()
-        st.rerun()
+    st.markdown("---")
+    col_again, col_export = st.columns(2)
+    with col_again:
+        if st.button("Take Quiz Again"):
+            state.reset_quiz_progress()
+            st.rerun()
+    with col_export:
+        # Keep the quiz after the session ends: a worksheet plus an answer key.
+        st.download_button(
+            "⬇️ Download quiz (Markdown)",
+            data=quiz_to_markdown(Quiz(questions=list(questions))),
+            file_name="quiz.md",
+            mime="text/markdown",
+            help="The questions and an answer key, as a file you can keep or print.",
+        )

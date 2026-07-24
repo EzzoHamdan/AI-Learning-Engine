@@ -22,6 +22,8 @@ from contextlib import contextmanager
 from datetime import UTC, date, datetime
 from pathlib import Path
 
+from learning_engine.analytics.scheduling import ReviewState
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS quiz_results (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -38,7 +40,8 @@ CREATE TABLE IF NOT EXISTS question_results (
     quiz_id        INTEGER NOT NULL REFERENCES quiz_results(id) ON DELETE CASCADE,
     qtype          TEXT    NOT NULL,
     correct        INTEGER NOT NULL,
-    difficulty_tag TEXT    NOT NULL
+    difficulty_tag TEXT    NOT NULL,
+    topic          TEXT    NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS material_events (
@@ -49,12 +52,27 @@ CREATE TABLE IF NOT EXISTS material_events (
     success INTEGER NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS flashcard_reviews (
+    card_key    TEXT    PRIMARY KEY,
+    repetitions INTEGER NOT NULL DEFAULT 0,
+    interval_d  INTEGER NOT NULL DEFAULT 0,
+    ease        REAL    NOT NULL DEFAULT 2.5,
+    due         TEXT,
+    reviewed_at TEXT    NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS flashcard_events (
     id     INTEGER PRIMARY KEY AUTOINCREMENT,
     ts     TEXT    NOT NULL,
     action TEXT    NOT NULL
 );
 """
+
+# Columns added after the initial schema, applied to existing databases by
+# _migrate. (table, column, DDL) — append only; never reorder or remove.
+_ADDED_COLUMNS = [
+    ("question_results", "topic", "topic TEXT NOT NULL DEFAULT ''"),
+]
 
 # Flashcard action -> the counter key the dashboard/metrics expect.
 _FLASHCARD_COUNTERS = {
@@ -108,6 +126,20 @@ class AnalyticsStore:
             parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as conn:
             conn.executescript(_SCHEMA)
+            self._migrate(conn)
+
+    @staticmethod
+    def _migrate(conn: sqlite3.Connection) -> None:
+        """Bring an existing database up to the current schema.
+
+        CREATE TABLE IF NOT EXISTS leaves databases made by an earlier version
+        untouched, so columns added later have to be applied by hand. Each step
+        is guarded by an inspection, making this safe to run on every open.
+        """
+        for table, column, ddl in _ADDED_COLUMNS:
+            existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+            if column not in existing:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
 
     # ------------------------------------------------------------------ #
     # Writes
@@ -140,14 +172,15 @@ class AnalyticsStore:
             # lastrowid is Optional in the stubs but always set after an INSERT.
             quiz_id = int(cur.lastrowid or 0)
             conn.executemany(
-                "INSERT INTO question_results (quiz_id, qtype, correct, difficulty_tag) "
-                "VALUES (?, ?, ?, ?)",
+                "INSERT INTO question_results "
+                "(quiz_id, qtype, correct, difficulty_tag, topic) VALUES (?, ?, ?, ?, ?)",
                 [
                     (
                         quiz_id,
                         q.get("question_type", "mcq_tf"),
                         int(bool(q.get("correct", False))),
                         q.get("difficulty_tag", "basic"),
+                        q.get("topic", "") or "",
                     )
                     for q in questions
                 ],
@@ -163,6 +196,58 @@ class AnalyticsStore:
                 "INSERT INTO material_events (ts, mtype, seconds, success) VALUES (?, ?, ?, ?)",
                 (_to_iso(ts), mtype, float(seconds), int(bool(success))),
             )
+
+    # ------------------------------------------------------------------ #
+    # Spaced repetition
+    # ------------------------------------------------------------------ #
+
+    def save_review(self, card_key: str, state: ReviewState, ts: datetime | None = None) -> None:
+        """Upsert one card's scheduling state (keyed on the card's stable key)."""
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO flashcard_reviews "
+                "(card_key, repetitions, interval_d, ease, due, reviewed_at) "
+                "VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(card_key) DO UPDATE SET "
+                "repetitions=excluded.repetitions, interval_d=excluded.interval_d, "
+                "ease=excluded.ease, due=excluded.due, reviewed_at=excluded.reviewed_at",
+                (
+                    card_key,
+                    state.repetitions,
+                    state.interval_days,
+                    state.ease,
+                    state.due.isoformat() if state.due else None,
+                    _to_iso(ts),
+                ),
+            )
+
+    def review_states(self, card_keys: list[str] | None = None) -> dict[str, ReviewState]:
+        """Load scheduling state, optionally restricted to a deck's card keys.
+
+        Cards with no stored review are omitted; callers treat a missing key as
+        a new card (ReviewState()).
+        """
+        query = "SELECT card_key, repetitions, interval_d, ease, due FROM flashcard_reviews"
+        params: tuple = ()
+        if card_keys is not None:
+            if not card_keys:
+                return {}
+            placeholders = ",".join("?" * len(card_keys))
+            query += f" WHERE card_key IN ({placeholders})"
+            params = tuple(card_keys)
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        return {
+            r["card_key"]: ReviewState(
+                repetitions=r["repetitions"],
+                interval_days=r["interval_d"],
+                ease=r["ease"],
+                due=date.fromisoformat(r["due"]) if r["due"] else None,
+            )
+            for r in rows
+        }
 
     def record_flashcard_event(self, action: str, ts: datetime | None = None) -> None:
         """Persist one flashcard interaction (viewed/correct/incorrect/skipped)."""
@@ -230,7 +315,7 @@ class AnalyticsStore:
         with self._connect() as conn:
             rows = conn.execute(
                 "SELECT q.id, q.ts, q.difficulty, q.quiz_type, q.score_pct, "
-                "qr.qtype, qr.correct, qr.difficulty_tag "
+                "qr.qtype, qr.correct, qr.difficulty_tag, qr.topic "
                 "FROM quiz_results q LEFT JOIN question_results qr ON qr.quiz_id = q.id "
                 "ORDER BY q.ts, q.id, qr.id"
             ).fetchall()
@@ -253,6 +338,7 @@ class AnalyticsStore:
                         "question_type": r["qtype"],
                         "correct": bool(r["correct"]),
                         "difficulty_tag": r["difficulty_tag"],
+                        "topic": r["topic"],
                     }
                 )
         return list(by_quiz.values())
