@@ -1,0 +1,45 @@
+# One command to run the app: `docker compose up`
+#
+# Defaults assume Ollama is already running on your machine (the free, private
+# option). To use a cloud provider instead, put the key in a .env file next to
+# this one and set LLM__DEFAULT_PROVIDER — compose reads .env automatically.
+#
+# To run Ollama in a container too, start with the `ollama` profile:
+#     docker compose --profile ollama up
+
+services:
+  app:
+    build: .
+    image: learning-engine
+    ports:
+      - "8501:8501"
+    volumes:
+      # Analytics, streaks and flashcard schedules survive `docker compose down`.
+      - learning-engine-data:/data
+    environment:
+      # Point at whichever Ollama is running: the host's by default, or the
+      # sibling container when the `ollama` profile is active.
+      LLM__OLLAMA__HOST: ${LLM__OLLAMA__HOST:-host.docker.internal}
+      LLM__DEFAULT_PROVIDER: ${LLM__DEFAULT_PROVIDER:-ollama}
+      LLM__OLLAMA__CHAT_MODEL: ${LLM__OLLAMA__CHAT_MODEL:-gemma2:2b}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+    extra_hosts:
+      # Linux does not resolve host.docker.internal by default; this adds it.
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  # Optional: an Ollama container, so the whole stack is self-contained.
+  # Enable with `--profile ollama`, and set LLM__OLLAMA__HOST=ollama.
+  ollama:
+    image: ollama/ollama:latest
+    profiles: [ollama]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  learning-engine-data:
+  ollama-models:

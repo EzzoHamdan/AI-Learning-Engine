@@ -102,3 +102,32 @@ jobs:
         with:
           name: streamlit-log
           path: streamlit.log
+
+  docker:
+    name: docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: learning-engine:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Container serves the app
+        run: |
+          docker run -d --name le -p 8501:8501 learning-engine:ci
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8501/_stcore/health > /dev/null; then
+              echo "container is healthy"; docker rm -f le; exit 0
+            fi
+            sleep 1
+          done
+          echo "container failed to become healthy"; docker logs le; exit 1
