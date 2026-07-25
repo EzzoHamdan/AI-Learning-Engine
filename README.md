@@ -6,13 +6,42 @@ university, then rebuilt into something other people can run.
 
 > **What this is:** the front door — what the app does, how to run it, how it is put together, and
 > where it is still rough.
-> **How to read it:** [Run it](#run-it) → [What it does](#what-it-does) →
-> [How it works](#how-it-works) (architecture, then the request flow) →
-> [Configuration](#configuration) → [Known sharp edges](#known-sharp-edges).
+> **How to read it:** [It costs nothing to run](#it-costs-nothing-to-run) → [Run it](#run-it) →
+> [What it does](#what-it-does) → [How it works](#how-it-works) (architecture, then the request
+> flow) → [Configuration](#configuration) → [Known sharp edges](#known-sharp-edges).
 > **Companions:** [`docs/modernization/`](docs/modernization/) — the audit, the target
 > architecture, and the 9-phase plan this codebase was rebuilt against.
-> **Verify with:** `uv run pytest` (222 tests) · `uv run ruff check .` · `uv run mypy`
-> **Reflects code as of:** 2026-07-24 (`1b2dffc`, branch `modernize`).
+> **Verify with:** `uv run pytest` (236 tests) · `uv run ruff check .` · `uv run mypy`
+> **Reflects code as of:** 2026-07-25 (`a544573`, branch `main`).
+
+---
+
+## It costs nothing to run
+
+**Three of the four providers are free, and none of them need a credit card.** Every feature in
+this README — quizzes, marking, study materials, analytics, spaced repetition — works on a budget
+of zero.
+
+| Route | Cost | What you give up |
+| --- | --- | --- |
+| **Ollama**, local | Free forever, no key, no account | Runs on your own hardware: a small model is weaker, a big one is slow |
+| **Google AI Studio** | Free tier, no card | A daily request cap |
+| **OpenRouter** | Free tier, no card | A daily request cap |
+| OpenAI | Pay-per-use | — |
+
+Google AI Studio and OpenRouter are **separate accounts with separate allowances**, so holding both
+gives you two independent daily budgets. The sidebar switches between them mid-session, with no
+restart and no config edit — when one is exhausted, change the dropdown and carry on.
+
+On OpenRouter the app defaults to `google/gemma-4-31b-it:free`. **The `:free` suffix is what keeps
+the key unbilled** — the same model without it is a paid route.
+
+> ⚠ **The daily caps are deliberately not written down here.** Both providers change them at short
+> notice, and a number in a README outlives its accuracy — Google cut its free Gemma quota in July
+> 2026. Read them from the source instead:
+> [Google's rate limits](https://ai.google.dev/gemini-api/docs/rate-limits) ·
+> [OpenRouter's rate limits](https://openrouter.ai/docs/api_reference/limits). Plan on "enough for
+> normal study use", not "enough to hammer".
 
 ---
 
@@ -56,15 +85,30 @@ Python 3.11+. Tested on Linux, macOS, and Windows in CI.
 
 ### Getting a model
 
-The app needs at least one provider. The free, private option is [Ollama](https://ollama.ai):
+The app needs at least one provider. All but the last of these are free — see
+[It costs nothing to run](#it-costs-nothing-to-run).
+
+**Local, private, no key** — [Ollama](https://ollama.ai):
 
 ```bash
 ollama serve
 ollama pull gemma2:2b     # ~2GB RAM; 9b and 27b are better and slower
 ```
 
-For Google AI or OpenAI, put a key in `.env` (see [Configuration](#configuration)) or paste one
-into the sidebar for the current session.
+**Free tier, no card** — grab a key from
+[Google AI Studio](https://aistudio.google.com/app/apikey) or
+[OpenRouter](https://openrouter.ai/keys), then either paste it into the sidebar for the current
+session or set it in `.env` to persist:
+
+```bash
+GOOGLE_AI_API_KEY=...       LLM__DEFAULT_PROVIDER=google
+OPENROUTER_API_KEY=...      LLM__DEFAULT_PROVIDER=openrouter
+```
+
+**Paid** — [OpenAI](https://platform.openai.com/api-keys), same two options, `OPENAI_API_KEY`.
+
+Keys are never written to disk by the app: a sidebar key lives for that session only, and a `.env`
+key is read from your environment.
 
 ---
 
@@ -124,7 +168,7 @@ test, not by convention ([`tests/test_architecture.py`](tests/test_architecture.
               ┌─────────────▼────────┐  ┌──────────────▼──────┐
               │  llm/                │  │  extraction/        │
               │  client — ONE OpenAI │  │  pdf · docx · pptx  │
-              │   client, all three  │  └──────────┬──────────┘
+              │   client, all four   │  └──────────┬──────────┘
               │   providers          │             │      ┌────────────┐
               │  providers · struct- │             │      │  export/   │
               │   ured (schema +     │             │      │  markdown  │
@@ -168,7 +212,7 @@ flowchart TD
     end
 
     ANA --> DB[(SQLite<br/>~/.learning_engine)]
-    LLM --> PROV([Ollama · Google · OpenAI<br/>all OpenAI-compatible])
+    LLM --> PROV([Ollama · Google · OpenRouter · OpenAI<br/>all OpenAI-compatible])
 
     classDef ui stroke:#4493f8,stroke-width:2px
     classDef pure stroke:#3fb950,stroke-width:2px
@@ -178,10 +222,11 @@ flowchart TD
     class PROV,DB ext
 ```
 
-> All three providers speak the OpenAI chat-completions protocol, so there is one client and one
+> All four providers speak the OpenAI chat-completions protocol, so there is one client and one
 > code path — the ~600 lines of hand-written compatibility wrappers this project used to carry are
 > gone. Provider differences are data: a base URL, a key, two model names
-> ([`llm/providers.py`](src/learning_engine/llm/providers.py)).
+> ([`llm/providers.py`](src/learning_engine/llm/providers.py)). Adding OpenRouter was four entries
+> in that table and no new code path, which is the point of the design.
 
 ### Request flow: document to graded quiz
 
@@ -290,10 +335,11 @@ sections. API keys and deployment flags keep their conventional unprefixed names
 
 | Variable | Default | What it controls |
 | --- | --- | --- |
-| `LLM__DEFAULT_PROVIDER` | `ollama` | Which provider the app starts on: `ollama`, `google`, `openai` |
+| `LLM__DEFAULT_PROVIDER` | `ollama` | Which provider the app starts on: `ollama`, `google`, `openrouter`, `openai` |
 | `LLM__OLLAMA__CHAT_MODEL` | `gemma2:2b` | Local model used for generation |
 | `LLM__OLLAMA__HOST` / `__PORT` | `127.0.0.1` / `11434` | Where Ollama is listening |
 | `LLM__GOOGLE__CHAT_MODEL` | `gemini-2.5-flash` | Gemini model, via its OpenAI-compatible endpoint |
+| `LLM__OPENROUTER__CHAT_MODEL` | `google/gemma-4-31b-it:free` | OpenRouter model — keep `:free` to stay unbilled |
 | `LLM__OPENAI__CHAT_MODEL` | `gpt-4o-mini` | OpenAI model |
 | `LLM__GENERATION_TEMPERATURE` | `0.7` | Question generation |
 | `LLM__SCORING_TEMPERATURE` | `0.3` | Open-ended marking |
@@ -301,7 +347,7 @@ sections. API keys and deployment flags keep their conventional unprefixed names
 | `QUIZ__SUMMARY_THRESHOLD` | `24000` | Characters above which a document is condensed first |
 | `QUIZ__MAX_UPLOAD_MB` | `50` | Upload limit, enforced before parsing |
 | `QUIZ__MIN/MAX/DEFAULT_QUESTIONS` | `3` / `15` / `5` | Slider bounds |
-| `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY` | — | Cloud provider keys |
+| `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `OPENROUTER_API_KEY` | — | Cloud provider keys |
 | `DEBUG` | `false` | Provider/status diagnostics in the page |
 | `DEPLOYED` | `false` | Set `true` when hosting, so Streamlit secrets are read |
 | `LEARNING_ENGINE_DB` | `~/.learning_engine/analytics.db` | Where analytics are stored |
@@ -340,7 +386,7 @@ Negative guarantees, each covered by a test:
 
 ```bash
 uv sync                    # install, including dev dependencies
-uv run pytest              # 222 tests, ~1s
+uv run pytest              # 236 tests, ~1s
 uv run ruff check .        # lint
 uv run ruff format .       # format
 uv run mypy                # types — green across all 38 modules
@@ -384,6 +430,7 @@ Honest list. None of these are secretly fixed.
 | --- | --- |
 | Local AI (Ollama) | Nowhere. It stays on your machine. |
 | Google AI / OpenAI | To that provider's API over TLS, subject to their retention policy. |
+| OpenRouter | To OpenRouter, then on to whichever upstream host serves the model — two parties, not one. Free models in particular may be logged for training; check the model's page. |
 
 No usage tracking, no telemetry, no accounts. The analytics database is local, and can be exported
 or deleted from the dashboard.
@@ -398,6 +445,7 @@ or deleted from the dashboard.
 | "Running but no models installed" | Server up, nothing pulled | `ollama pull gemma2:2b` |
 | "API key not provided" | No key for the selected cloud provider | Paste it in the sidebar, or set it in `.env` |
 | "Could not generate a valid quiz" after retry | Model too small to produce valid JSON | Use a larger model, or switch provider |
+| Generation fails with a 429 / "rate limit" | The free tier's daily or per-minute cap is spent | Wait for the reset, or switch to the other free provider in the sidebar — the allowances are independent |
 | Container can't reach Ollama | `host.docker.internal` not resolving (Linux) | Already mapped in `docker-compose.yml`; with plain `docker run`, add `--add-host=host.docker.internal:host-gateway` |
 | Analytics empty after a quiz | DB path not writable | Check `LEARNING_ENGINE_DB` — persistence failures are logged, never raised |
 
