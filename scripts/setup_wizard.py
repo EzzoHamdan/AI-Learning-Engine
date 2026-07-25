@@ -135,9 +135,10 @@ def setup_local_ai():
 
 def setup_google_ai():
     """Guide user through Google AI setup."""
-    print_header("GOOGLE AI SETUP (FREE TIER AVAILABLE)")
-    print("Google AI offers free tier with generous limits.")
-    print("Great for getting started without costs!\n")
+    print_header("GOOGLE AI STUDIO SETUP (FREE TIER, NO CARD)")
+    print("Google AI Studio issues a key with a free tier — no credit card needed.")
+    print("There is a daily request cap; Google changes it, so check their")
+    print("rate-limits page rather than trusting a number printed here.\n")
 
     print("📝 To get your Google AI API key:")
     print("1. Visit: https://aistudio.google.com/app/apikey")
@@ -153,6 +154,31 @@ def setup_google_ai():
             return True, api_key
         else:
             print_warning("API key doesn't look right. Should start with 'AIza'")
+
+    return False, None
+
+
+def setup_openrouter():
+    """Guide user through OpenRouter setup."""
+    print_header("OPENROUTER SETUP (FREE TIER, NO CARD)")
+    print("OpenRouter puts many models behind one key, including free ones.")
+    print("This is a SECOND free allowance on top of Google AI Studio's —")
+    print("configure both and you can switch in the sidebar when one runs out.\n")
+
+    print("📝 To get your OpenRouter API key:")
+    print("1. Visit: https://openrouter.ai/keys")
+    print("2. Sign in (GitHub or Google works)")
+    print("3. Click 'Create Key'")
+    print("4. Copy the API key that starts with 'sk-or-'")
+
+    api_key = input("\nEnter your OpenRouter API key (or press Enter to skip): ").strip()
+
+    if api_key:
+        if api_key.startswith("sk-or-"):
+            print_success("OpenRouter API key looks valid!")
+            return True, api_key
+        else:
+            print_warning("API key doesn't look right. Should start with 'sk-or-'")
 
     return False, None
 
@@ -187,14 +213,22 @@ def create_env_file(
     local_model: str = "",
     google_ai: bool = False,
     google_key: str = "",
+    openrouter: bool = False,
+    openrouter_key: str = "",
     openai: bool = False,
     openai_key: str = "",
 ):
-    """Create the .env configuration file."""
+    """Create the .env configuration file.
+
+    The default provider is the first free option configured — a wizard that
+    silently started someone on the paid provider would be a bad default.
+    """
     if local_ai:
         default_provider = "ollama"
     elif google_ai:
         default_provider = "google"
+    elif openrouter:
+        default_provider = "openrouter"
     elif openai:
         default_provider = "openai"
     else:
@@ -206,8 +240,9 @@ def create_env_file(
 # API Keys
 OPENAI_API_KEY="{openai_key}"
 GOOGLE_AI_API_KEY="{google_key}"
+OPENROUTER_API_KEY="{openrouter_key}"
 
-# Which provider to start on: ollama | google | openai
+# Which provider to start on: ollama | google | openrouter | openai
 LLM__DEFAULT_PROVIDER={default_provider}
 
 # Advanced Settings
@@ -225,7 +260,9 @@ def main():
     """Main setup wizard."""
     print_header("AI QUIZ GENERATOR - EASY SETUP")
     print("Welcome! This wizard will help you set up the AI Quiz Generator.")
-    print("You can choose from multiple AI providers based on your needs.\n")
+    print("You can choose from multiple AI providers based on your needs.")
+    print("💸 Three of the four are FREE and need no credit card — you can set")
+    print("   up more than one and switch between them from the sidebar.\n")
 
     # Check Python version
     if not check_python_version():
@@ -248,14 +285,20 @@ def main():
     if local_ai:
         configurations.append(("Local AI", local_ai, local_model))
 
-    # Option 2: Google AI
-    print_info("\n🆕 Option 2: Google AI")
+    # Option 2: Google AI (free tier)
+    print_info("\n🆕 Option 2: Google AI Studio (free tier)")
     google_ai, google_key = setup_google_ai()
     if google_ai:
         configurations.append(("Google AI", google_ai, google_key))
 
-    # Option 3: OpenAI
-    print_info("\n⚡ Option 3: OpenAI")
+    # Option 3: OpenRouter (free tier) — a second, independent free allowance.
+    print_info("\n🆓 Option 3: OpenRouter (free tier)")
+    openrouter, openrouter_key = setup_openrouter()
+    if openrouter:
+        configurations.append(("OpenRouter", openrouter, openrouter_key))
+
+    # Option 4: OpenAI
+    print_info("\n⚡ Option 4: OpenAI (paid)")
     openai_ai, openai_key = setup_openai()
     if openai_ai:
         configurations.append(("OpenAI", openai_ai, openai_key))
@@ -275,6 +318,8 @@ def main():
             local_model=local_model or _ollama_settings().chat_model,
             google_ai=google_ai,
             google_key=google_key or "",
+            openrouter=openrouter,
+            openrouter_key=openrouter_key or "",
             openai=openai_ai,
             openai_key=openai_key or "",
         )
@@ -289,6 +334,8 @@ def main():
     print("• Start with a short document (1-3 pages) for best results")
     print("• Try different difficulty levels to match your needs")
     print("• Local AI is private but may be slower than cloud options")
+    print("• Google AI Studio and OpenRouter have separate free allowances —")
+    print("  set up both, and switch in the sidebar when one hits its daily cap")
 
     input("\nPress Enter to exit...")
 

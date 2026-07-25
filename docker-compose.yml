@@ -3,6 +3,8 @@
 # Defaults assume Ollama is already running on your machine (the free, private
 # option). To use a cloud provider instead, put the key in a .env file next to
 # this one and set LLM__DEFAULT_PROVIDER — compose reads .env automatically.
+# Google AI Studio and OpenRouter both have a free tier, so a cloud provider
+# does not have to mean a bill; see the README.
 #
 # To run Ollama in a container too, start with the `ollama` profile:
 #     docker compose --profile ollama up
@@ -24,6 +26,7 @@ services:
       LLM__OLLAMA__CHAT_MODEL: ${LLM__OLLAMA__CHAT_MODEL:-gemma2:2b}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       GOOGLE_AI_API_KEY: ${GOOGLE_AI_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     extra_hosts:
       # Linux does not resolve host.docker.internal by default; this adds it.
       - "host.docker.internal:host-gateway"

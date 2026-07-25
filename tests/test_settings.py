@@ -27,6 +27,7 @@ from learning_engine.settings import (
 _ENV_VARS = (
     "OPENAI_API_KEY",
     "GOOGLE_AI_API_KEY",
+    "OPENROUTER_API_KEY",
     "LOCAL_AI_MODEL",
     "LOCAL_AI_HOST",
     "LOCAL_AI_PORT",
@@ -97,9 +98,11 @@ def test_nested_env_override(monkeypatch: pytest.MonkeyPatch):
 def test_api_keys_use_their_conventional_unprefixed_names(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("GOOGLE_AI_API_KEY", "AIza-test")
+    monkeypatch.setenv("OPENROUTER_API_KEY", "sk-or-test")
     llm = LLMSettings(_env_file=None)
     assert llm.api_key("openai") == "sk-test"
     assert llm.api_key("google") == "AIza-test"
+    assert llm.api_key("openrouter") == "sk-or-test"
     assert llm.api_key("ollama") == ""
 
 

@@ -22,12 +22,14 @@ class Provider(StrEnum):
     OLLAMA = "ollama"
     GOOGLE = "google"
     OPENAI = "openai"
+    OPENROUTER = "openrouter"
 
 
 # Human-facing labels stored in session state / shown in the sidebar.
 DISPLAY_NAMES: dict[Provider, str] = {
     Provider.OLLAMA: "Local AI (Ollama)",
     Provider.GOOGLE: "Google AI",
+    Provider.OPENROUTER: "OpenRouter",
     Provider.OPENAI: "OpenAI",
 }
 

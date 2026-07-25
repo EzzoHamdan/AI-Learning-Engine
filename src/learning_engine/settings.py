@@ -39,7 +39,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # rest of the process — including Streamlit itself — has always seen.
 load_dotenv()
 
-ProviderName = Literal["ollama", "google", "openai"]
+ProviderName = Literal["ollama", "google", "openai", "openrouter"]
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 # Repo checkout first, then the working directory (which wins if both exist).
@@ -109,6 +109,23 @@ class OpenAISettings(BaseModel):
         return self.scoring_model or self.chat_model
 
 
+class OpenRouterSettings(BaseModel):
+    """OpenRouter — one key, many models, including free ones.
+
+    The default is a `:free` model so a student with no budget can run the whole
+    app on a key that never bills. Free models are capped per day rather than
+    metered; the cap is OpenRouter's to change, so it is not recorded here.
+    """
+
+    base_url: str = "https://openrouter.ai/api/v1"
+    chat_model: str = "google/gemma-4-31b-it:free"
+    scoring_model: str = ""  # blank → reuse chat_model
+
+    @property
+    def scoring(self) -> str:
+        return self.scoring_model or self.chat_model
+
+
 # Pre-Phase-7 env names → the nested Ollama field they now map to.
 _LEGACY_OLLAMA_ENV = {
     "LOCAL_AI_MODEL": "chat_model",
@@ -141,12 +158,14 @@ class LLMSettings(BaseSettings):
     ollama: OllamaSettings = Field(default_factory=OllamaSettings)
     google: GoogleSettings = Field(default_factory=GoogleSettings)
     openai: OpenAISettings = Field(default_factory=OpenAISettings)
+    openrouter: OpenRouterSettings = Field(default_factory=OpenRouterSettings)
 
     default_provider: ProviderName = "ollama"
 
     # API keys keep their conventional, unprefixed names.
     openai_api_key: str = Field("", validation_alias=AliasChoices("OPENAI_API_KEY"))
     google_api_key: str = Field("", validation_alias=AliasChoices("GOOGLE_AI_API_KEY"))
+    openrouter_api_key: str = Field("", validation_alias=AliasChoices("OPENROUTER_API_KEY"))
 
     generation_temperature: float = 0.7
     scoring_temperature: float = 0.3
@@ -187,7 +206,11 @@ class LLMSettings(BaseSettings):
 
     def api_key(self, provider: ProviderName) -> str:
         """The environment-supplied key for `provider` ("" for Ollama)."""
-        return {"openai": self.openai_api_key, "google": self.google_api_key}.get(provider, "")
+        return {
+            "openai": self.openai_api_key,
+            "google": self.google_api_key,
+            "openrouter": self.openrouter_api_key,
+        }.get(provider, "")
 
 
 # --------------------------------------------------------------------------- #

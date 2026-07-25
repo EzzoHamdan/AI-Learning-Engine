@@ -71,6 +71,14 @@ def build_provider_config(provider: Provider, session_manager: SessionManager) -
             chat_model=llm.google.chat_model,
             scoring_model=llm.google.scoring,
         )
+    if provider is Provider.OPENROUTER:
+        return ProviderConfig(
+            provider=provider,
+            base_url=llm.openrouter.base_url,
+            api_key=session_manager.get_api_key("OpenRouter"),
+            chat_model=llm.openrouter.chat_model,
+            scoring_model=llm.openrouter.scoring,
+        )
     return ProviderConfig(
         provider=provider,
         base_url=llm.openai.base_url,

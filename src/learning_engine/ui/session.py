@@ -47,49 +47,49 @@ class SessionManager:
         """The display name of the configured default provider (LLM__DEFAULT_PROVIDER)."""
         return DISPLAY_NAMES[Provider(self.settings.llm.default_provider)]
 
+    # Display name → the session-state slot and Streamlit-secret name for its key.
+    _KEY_SLOTS = {
+        "OpenAI": ("openai", "OPENAI_API_KEY"),
+        "Google AI": ("google_ai", "GOOGLE_AI_API_KEY"),
+        "OpenRouter": ("openrouter", "OPENROUTER_API_KEY"),
+    }
+
     def _load_saved_api_keys(self) -> dict[str, str]:
         """Load API keys from Streamlit secrets (when deployed) and settings."""
-        api_keys = {"openai": "", "google_ai": ""}
+        api_keys = {slot: "" for slot, _ in self._KEY_SLOTS.values()}
 
         # In cloud deployments, prioritize Streamlit secrets
         if self.is_cloud_deployment:
             try:
-                api_keys["openai"] = st.secrets.get("OPENAI_API_KEY", "")
-                api_keys["google_ai"] = st.secrets.get("GOOGLE_AI_API_KEY", "")
+                for slot, secret_name in self._KEY_SLOTS.values():
+                    api_keys[slot] = st.secrets.get(secret_name, "")
             except Exception:
                 pass  # Secrets not available or not configured
 
         # Fall back to the environment (via settings)
         api_keys["openai"] = api_keys["openai"] or self.settings.llm.openai_api_key
         api_keys["google_ai"] = api_keys["google_ai"] or self.settings.llm.google_api_key
+        api_keys["openrouter"] = api_keys["openrouter"] or self.settings.llm.openrouter_api_key
 
         return api_keys
 
     def get_api_key(self, provider: str) -> str:
         """Get API key for specified provider."""
-        key_mapping = {"OpenAI": "openai", "Google AI": "google_ai"}
-        key_name = key_mapping.get(provider, "")
-        return st.session_state.api_keys.get(key_name, "")
+        slot = self._KEY_SLOTS.get(provider)
+        return st.session_state.api_keys.get(slot[0], "") if slot else ""
 
     def set_api_key(self, provider: str, key: str):
         """Set API key for specified provider."""
-        key_mapping = {"OpenAI": "openai", "Google AI": "google_ai"}
-        key_name = key_mapping.get(provider, "")
-        if key_name:
-            st.session_state.api_keys[key_name] = key
+        slot = self._KEY_SLOTS.get(provider)
+        if slot:
+            st.session_state.api_keys[slot[0]] = key
 
     def check_provider_availability(self, provider: str) -> tuple[bool, str]:
         """Check if a provider is available and return status message."""
         if provider == "Local AI (Ollama)":
             return self._check_ollama_availability()
-        elif provider == "Google AI":
-            api_key = self.get_api_key(provider)
-            if not api_key:
-                return False, "API key not provided"
-            return True, "API key available"
-        elif provider == "OpenAI":
-            api_key = self.get_api_key(provider)
-            if not api_key:
+        elif provider in self._KEY_SLOTS:
+            if not self.get_api_key(provider):
                 return False, "API key not provided"
             return True, "API key available"
         else:
@@ -129,31 +129,38 @@ class SessionManager:
         st.sidebar.subheader("🔐 API Configuration")
         st.sidebar.caption(
             "Keys are used for this session only. For persistent config, set "
-            "OPENAI_API_KEY / GOOGLE_AI_API_KEY in your environment or, when "
-            "deployed, in Streamlit secrets."
+            "OPENAI_API_KEY / GOOGLE_AI_API_KEY / OPENROUTER_API_KEY in your "
+            "environment or, when deployed, in Streamlit secrets."
+        )
+        st.sidebar.info(
+            "💸 **No budget?** You never have to pay to use this app. Ollama needs "
+            "no key at all, and both [Google AI Studio](https://aistudio.google.com/app/apikey) "
+            "and [OpenRouter](https://openrouter.ai/keys) issue keys with a free "
+            "tier — no card required. Each caps how many requests a day you get, "
+            "and both change those caps, so check their own limits pages for "
+            "today's number."
         )
 
-        # OpenAI API Key
-        current_openai = self.get_api_key("OpenAI")
-        openai_key = st.sidebar.text_input(
-            "OpenAI API Key:",
-            value=current_openai,
-            type="password",
-            help="Enter your OpenAI API key for GPT models",
-        )
-        if openai_key != current_openai:
-            self.set_api_key("OpenAI", openai_key)
-
-        # Google AI API Key
-        current_google = self.get_api_key("Google AI")
-        google_key = st.sidebar.text_input(
-            "Google AI API Key:",
-            value=current_google,
-            type="password",
-            help="Enter your Google AI API key for Gemini models",
-        )
-        if google_key != current_google:
-            self.set_api_key("Google AI", google_key)
+        # Free-tier-capable providers first — a student with no card can start here.
+        openrouter_model = self.settings.llm.openrouter.chat_model
+        for provider, label, help_text in (
+            (
+                "Google AI",
+                "Google AI API Key:",
+                "Free-tier key from aistudio.google.com/app/apikey — Gemini and Gemma models",
+            ),
+            (
+                "OpenRouter",
+                "OpenRouter API Key:",
+                f"Key from openrouter.ai/keys. Default model is {openrouter_model}, "
+                "which costs nothing but is capped per day.",
+            ),
+            ("OpenAI", "OpenAI API Key:", "Enter your OpenAI API key for GPT models (paid)"),
+        ):
+            current = self.get_api_key(provider)
+            entered = st.sidebar.text_input(label, value=current, type="password", help=help_text)
+            if entered != current:
+                self.set_api_key(provider, entered)
 
     def render_provider_selector(self) -> str:
         """Render provider selector with status indicators."""

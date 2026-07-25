@@ -62,7 +62,9 @@ def render() -> None:
 
     st.title(app_config.title)
 
-    provider_emoji = {"Local AI (Ollama)": "🏠", "Google AI": "🆕"}.get(active.display_name, "⚡")
+    provider_emoji = {"Local AI (Ollama)": "🏠", "Google AI": "🆕", "OpenRouter": "🆓"}.get(
+        active.display_name, "⚡"
+    )
     st.info(
         f"{provider_emoji} **Powered by {active.display_name}** - Advanced AI for "
         "intelligent quiz generation and study materials creation"
@@ -221,8 +223,15 @@ def _handle_document_and_generation(
                 "1. **Local AI**: Start Ollama server (`ollama serve`) and pull a model "
                 f"(`ollama pull {get_settings().llm.ollama.chat_model}`)"
             )
-            st.info("2. **Google AI**: Enter your Google AI API key in the sidebar")
-            st.info("3. **OpenAI**: Enter your OpenAI API key in the sidebar")
+            st.info(
+                "2. **Google AI** (free tier, no card): get a key at "
+                "aistudio.google.com/app/apikey and paste it in the sidebar"
+            )
+            st.info(
+                "3. **OpenRouter** (free tier, no card): get a key at "
+                "openrouter.ai/keys and paste it in the sidebar"
+            )
+            st.info("4. **OpenAI** (paid): Enter your OpenAI API key in the sidebar")
             return
 
         if request.generation_type == "Interactive Quiz":
@@ -451,10 +460,22 @@ def _render_welcome(session_manager: SessionManager) -> None:
     4. 📝 **Generate & Use** your personalized content
     5. 📊 **Review** results with detailed AI-powered feedback
 
-    ### AI Provider Options:
-    - 🏠 **Local AI (Ollama)**: Run Gemma models locally - completely free and private!
-    - 🆕 **Google AI**: Use Google's Gemma models via API
-    - ⚡ **OpenAI**: Traditional GPT models for reference
+    ### AI Provider Options — 💸 three of the four are FREE:
+    - 🏠 **Local AI (Ollama)**: Gemma models on your own machine — free forever, no key,
+      no account, and your documents never leave the device
+    - 🆕 **Google AI Studio**: free-tier key, no credit card —
+      [get one](https://aistudio.google.com/app/apikey)
+    - 🆓 **OpenRouter**: free-tier key, no credit card, many models behind one key —
+      [get one](https://openrouter.ai/keys)
+    - ⚡ **OpenAI**: pay-per-use, for when you want GPT specifically
+
+    **You never have to pay to use this app.** Google AI Studio and OpenRouter are separate
+    accounts with separate daily allowances, so setting up both gives you two independent
+    budgets — when one hits its cap, switch in the sidebar and keep going. Each provider sets
+    its own cap and changes it without notice, so check
+    [Google's](https://ai.google.dev/gemini-api/docs/rate-limits) and
+    [OpenRouter's](https://openrouter.ai/docs/api_reference/limits) own limits pages for the
+    current numbers.
 
     ### 📚 **Study Materials Available:**
     - **📖 Complete Study Guide**: Comprehensive package with summary, cheat sheet,
